@@ -12,13 +12,13 @@ use ratatui::{DefaultTerminal, Frame};
 use super::redis::RedisClient;
 
 #[derive(Debug)]
-pub struct App {
+pub struct App<T: RedisClient> {
     exit: bool,
-    redis_client: RedisClient,
+    redis_client: T,
 }
 
-impl App {
-    pub fn new(redis_client: RedisClient) -> Self {
+impl<T: RedisClient> App<T> {
+    pub fn new(redis_client: T) -> Self {
         Self {
             exit: false,
             redis_client,
@@ -26,7 +26,7 @@ impl App {
     }
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
-        let tick_rate = Duration::from_millis(16);
+        let tick_rate = Duration::from_millis(100);
         let mut last_tick = Instant::now();
         while !self.exit {
             terminal.draw(|frame| self.render(frame))?;
@@ -54,7 +54,7 @@ impl App {
 
     fn render(&self, frame: &mut Frame) {
         let header = Text::from_iter([
-            format!("Redis Lens ({})", self.redis_client.url.clone().bold()),
+            format!("Redis Lens ({})", self.redis_client.url().bold()),
             "<q> Quit | <enter> Change Marker | <hjkl> Move".into(),
         ]);
 
