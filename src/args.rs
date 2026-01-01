@@ -16,7 +16,6 @@ pub struct Arg {
     pub key: Option<String>,
 }
 
-pub fn parse_args() -> Result<Arg> {
-    let args = Arg::parse();
-    Ok(args)
+pub fn parse() -> Arg {
+    Arg::parse()
 }

@@ -9,16 +9,20 @@ use ratatui::widgets::canvas::{Canvas, Map, MapResolution};
 use ratatui::widgets::{Block, Widget};
 use ratatui::{DefaultTerminal, Frame};
 
-#[derive(Debug, Default)]
+use super::redis::RedisClient;
+
+#[derive(Debug)]
 pub struct App {
     exit: bool,
-    x: f64,
-    y: f64,
+    redis_client: RedisClient,
 }
 
 impl App {
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(redis_client: RedisClient) -> Self {
+        Self {
+            exit: false,
+            redis_client,
+        }
     }
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
@@ -44,17 +48,13 @@ impl App {
         }
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.exit = true,
-            KeyCode::Char('j') | KeyCode::Down => self.y += 1.0,
-            KeyCode::Char('k') | KeyCode::Up => self.y -= 1.0,
-            KeyCode::Char('l') | KeyCode::Right => self.x += 1.0,
-            KeyCode::Char('h') | KeyCode::Left => self.x -= 1.0,
             _ => {}
         }
     }
 
     fn render(&self, frame: &mut Frame) {
         let header = Text::from_iter([
-            "Canvas Example".bold(),
+            format!("Redis Lens ({})", self.redis_client.url.clone().bold()),
             "<q> Quit | <enter> Change Marker | <hjkl> Move".into(),
         ]);
 
@@ -80,7 +80,7 @@ impl App {
                     color: Color::Green,
                     resolution: MapResolution::High,
                 });
-                ctx.print(self.x, -self.y, "Keys here".yellow());
+                ctx.print(0., 0., "Keys here".yellow());
             })
     }
 
@@ -88,7 +88,7 @@ impl App {
         Canvas::default()
             .block(Block::bordered().title("Value"))
             .paint(|ctx| {
-                ctx.print(self.x, -self.y, "Value here".yellow());
+                ctx.print(0., 0., "Value here".yellow());
             })
     }
 }
