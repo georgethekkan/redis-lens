@@ -1,36 +1,45 @@
 use std::io;
-use std::time::{Duration, Instant};
 
-use color_eyre::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEvent};
-use ratatui::layout::{Constraint, Direction, Layout};
-use ratatui::style::{Color, Modifier, Style, Stylize};
-use ratatui::text::Text;
-use ratatui::widgets::canvas::{Canvas, Map, MapResolution};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Widget};
-use ratatui::{DefaultTerminal, Frame};
+use crossterm::event::{self, Event, KeyCode};
+use ratatui::{
+    DefaultTerminal, Frame,
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Modifier, Style},
+    widgets::{Block, Borders, List, ListItem, ListState},
+};
 
-use super::redis::RedisClient;
+fn main() -> Result<(), io::Error> {
+    let mut terminal = ratatui::init();
+    let mut app = App::new();
+    app.run(&mut terminal)?;
 
-#[derive(Debug)]
-pub struct App<T: RedisClient> {
-    exit: bool,
-    redis_client: T,
-    list_state: ListState,
+    ratatui::restore();
+    Ok(())
 }
 
-impl<T: RedisClient> App<T> {
-    pub fn new(redis_client: T) -> Self {
+struct App {
+    exit: bool,
+    list_state: ListState,
+    list_items: Vec<String>,
+}
+
+impl App {
+    fn new() -> Self {
         Self {
             exit: false,
-            redis_client,
             list_state: ListState::default(),
+            list_items: vec![
+                "Item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Item 6", "Item 7",
+            ]
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect(),
         }
     }
 
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+    fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<(), io::Error> {
         loop {
-            terminal.draw(|f| self.draw(f).unwrap())?;
+            terminal.draw(|f| self.draw(f))?;
 
             if let Event::Key(key) = event::read()? {
                 match key.code {
@@ -48,7 +57,7 @@ impl<T: RedisClient> App<T> {
         Ok(())
     }
 
-    fn draw(&mut self, frame: &mut Frame) -> Result<()> {
+    fn draw(&mut self, frame: &mut Frame) {
         let layout = Layout::default()
             .direction(Direction::Horizontal)
             .margin(1)
@@ -57,10 +66,9 @@ impl<T: RedisClient> App<T> {
 
         // Left panel: List
         let list_items: Vec<ListItem> = self
-            .redis_client
-            .scan()?
-            .into_iter()
-            .map(ListItem::new)
+            .list_items
+            .iter()
+            .map(|i| ListItem::new(i.clone()))
             .collect();
 
         let list = List::new(list_items)
@@ -77,7 +85,5 @@ impl<T: RedisClient> App<T> {
         // Right panel: Placeholder for details or other content
         let details = Block::bordered().title("Details");
         frame.render_widget(details, right);
-
-        Ok(())
     }
 }
