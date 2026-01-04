@@ -7,7 +7,7 @@ use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::Text;
 use ratatui::widgets::canvas::{Canvas, Map, MapResolution};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Widget};
+use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Widget};
 use ratatui::{DefaultTerminal, Frame};
 
 use super::redis::RedisClient;
@@ -16,16 +16,19 @@ use super::redis::RedisClient;
 pub struct App<T: RedisClient> {
     exit: bool,
     redis_client: T,
+    keys: Vec<String>,
     list_state: ListState,
 }
 
 impl<T: RedisClient> App<T> {
-    pub fn new(redis_client: T) -> Self {
-        Self {
+    pub fn new(redis_client: T) -> Result<Self> {
+        let keys = redis_client.scan()?;
+        Ok(Self {
             exit: false,
             redis_client,
+            keys,
             list_state: ListState::default(),
-        }
+        })
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
@@ -57,10 +60,9 @@ impl<T: RedisClient> App<T> {
 
         // Left panel: List
         let list_items: Vec<ListItem> = self
-            .redis_client
-            .scan()?
-            .into_iter()
-            .map(ListItem::new)
+            .keys
+            .iter()
+            .map(|k| ListItem::new(k.as_str()))
             .collect();
 
         let list = List::new(list_items)
@@ -74,8 +76,18 @@ impl<T: RedisClient> App<T> {
 
         frame.render_stateful_widget(list, left, &mut self.list_state);
 
-        // Right panel: Placeholder for details or other content
-        let details = Block::bordered().title("Details");
+        // Right panel: Details
+        let mut details_text = String::new();
+        if let Some(index) = self.list_state.selected()
+            && let Some(key) = self.keys.get(index)
+        {
+            match self.redis_client.get(key) {
+                Ok(value) => details_text = value,
+                Err(e) => details_text = format!("Error: {}", e),
+            }
+        }
+
+        let details = Paragraph::new(details_text).block(Block::bordered().title("Details"));
         frame.render_widget(details, right);
 
         Ok(())

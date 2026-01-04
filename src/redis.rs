@@ -70,6 +70,7 @@ impl RedisClient for RedisClientImpl {
 pub struct RedisClientMock {
     url: String,
 }
+
 impl RedisClientMock {
     pub fn new(url: String) -> RedisClientMock {
         RedisClientMock { url }
@@ -85,10 +86,7 @@ impl RedisClient for RedisClientMock {
     }
 
     fn scan(&self) -> Result<Vec<String>> {
-        let keys = vec!["key1", "key2", "key3"]
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect();
+        let keys = (1..20).map(|k| format!("key {}", k)).collect::<Vec<_>>();
         Ok(keys)
     }
 }

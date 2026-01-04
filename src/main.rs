@@ -28,7 +28,7 @@ fn main() -> Result<()> {
 
     stdout().execute(EnableMouseCapture)?;
     let mut terminal = ratatui::init();
-    App::new(redis_client).run(&mut terminal)?;
+    App::new(redis_client)?.run(&mut terminal)?;
     ratatui::restore();
     stdout().execute(DisableMouseCapture)?;
 
