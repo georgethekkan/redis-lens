@@ -26,12 +26,30 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    if let Some(pattern) = args.delete_all {
+        return delete_keys(&pattern, &redis_client);
+    }
+
     stdout().execute(EnableMouseCapture)?;
     let mut terminal = ratatui::init();
     App::new(redis_client)?.run(&mut terminal)?;
     ratatui::restore();
     stdout().execute(DisableMouseCapture)?;
 
+    Ok(())
+}
+
+fn delete_keys(pattern: &str, redis_client: &dyn RedisClient) -> Result<()> {
+    let keys = redis_client.scan_pattern(pattern)?;
+    if keys.is_empty() {
+        println!("No keys found matching pattern: {}", pattern);
+        return Ok(());
+    }
+    println!("Deleting {} keys matching pattern: {}", keys.len(), pattern);
+    for key in keys {
+        redis_client.del(&key)?;
+        println!("Deleted key: {}", key);
+    }
     Ok(())
 }
 

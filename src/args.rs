@@ -18,6 +18,10 @@ pub struct Arg {
     /// dry run, do not connect to redis
     #[clap(short, long)]
     pub dry_run: bool,
+
+    /// delete all keys matching the pattern
+    #[clap(long)]
+    pub delete_all: Option<String>,
 }
 
 pub fn parse() -> Arg {
