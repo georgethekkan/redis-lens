@@ -21,6 +21,11 @@ impl RedisClient for RedisClientMock {
         Ok(format!("value for {}", key))
     }
 
+    fn set(&self, key: &str, value: &str) -> Result<()> {
+        println!("Mock set key: {} to value: {}", key, value);
+        Ok(())
+    }
+
     fn scan(&self) -> Result<Vec<String>> {
         let keys = (1..20).map(|k| format!("key {}", k)).collect::<Vec<_>>();
         Ok(keys)
