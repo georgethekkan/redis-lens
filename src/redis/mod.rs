@@ -9,6 +9,7 @@ pub use real::{RedisClientImpl, RedisConnectionManager};
 pub trait RedisClient {
     fn url(&self) -> String;
     fn get(&self, key: &str) -> Result<String>;
+    fn set(&self, key: &str, value: &str) -> Result<()>;
     fn scan(&self) -> Result<Vec<String>>;
     fn scan_pattern(&self, pattern: &str) -> Result<Vec<String>>;
     fn del(&self, key: &str) -> Result<()>;
@@ -23,6 +24,9 @@ impl RedisClient for Box<dyn RedisClient> {
 
     fn get(&self, key: &str) -> Result<String> {
         (**self).get(key)
+    }
+    fn set(&self, key: &str, value: &str) -> Result<()> {
+        (**self).set(key, value)
     }
 
     fn scan(&self) -> Result<Vec<String>> {

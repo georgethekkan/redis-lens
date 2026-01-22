@@ -73,6 +73,12 @@ impl RedisClient for RedisClientImpl {
         Ok(value)
     }
 
+    fn set(&self, key: &str, value: &str) -> Result<()> {
+        let mut con = self.get_connection()?;
+        let _: () = con.set(key.to_string(), value.to_string()).context("Failed to set key in Redis")?;
+        Ok(())
+    }
+
     fn scan(&self) -> Result<Vec<String>> {
         let mut con = self.get_connection()?;
         let keys: Vec<String> = con
