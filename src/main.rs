@@ -21,25 +21,54 @@ fn main() -> Result<()> {
         Box::new(RedisClientImpl::new(args.url, args.db)?)
     };
 
-    if let Some(key) = args.key {
-        handle_key(&key, &redis_client);
-        return Ok(());
-    }
-
-    stdout().execute(EnableMouseCapture)?;
-    let mut terminal = ratatui::init();
-    App::new(redis_client)?.run(&mut terminal)?;
-    ratatui::restore();
-    stdout().execute(DisableMouseCapture)?;
+    match &args.cmd {
+        Some(args::Commands::Get { key }) => get(key, &redis_client),
+        Some(args::Commands::Set { key, value }) => set(key, value, &redis_client),
+        Some(args::Commands::Delete { key }) => delete_keys(key, &redis_client),
+        Some(args::Commands::DeleteAll { pattern }) => delete_keys(pattern, &redis_client),
+        None => start_ui(redis_client),
+    };
 
     Ok(())
 }
 
-fn handle_key(key: &str, redis_client: &dyn RedisClient) -> Result<()> {
+fn start_ui(redis_client: Box<dyn RedisClient>) -> Result<()> {
+stdout().execute(EnableMouseCapture)?;
+    let mut terminal = ratatui::init();
+    App::new(redis_client)?.run(&mut terminal)?;
+    ratatui::restore();
+    stdout().execute(DisableMouseCapture)?;
+    Ok(())
+}
+
+fn delete_keys(pattern: &str, redis_client: &dyn RedisClient) -> Result<()> {
+    let keys = redis_client.scan_pattern(pattern)?;
+    if keys.is_empty() {
+        println!("No keys found matching pattern: {}", pattern);
+        return Ok(());
+    }
+    println!("Deleting {} keys matching pattern: {}", keys.len(), pattern);
+    for key in keys {
+        redis_client.del(&key)?;
+        println!("Deleted key: {}", key);
+    }
+    Ok(())
+}
+
+fn get(key: &str, redis_client: &dyn RedisClient) -> Result<()> {
     println!("Fetching key: {}", key);
     let value: String = redis_client
         .get(key)
         .context("Failed to get key from Redis")?;
     println!("Value: {}", value);
+    Ok(())
+}
+
+fn set(key: &str, value: &str, redis_client: &dyn RedisClient) -> Result<()> {
+    println!("Setting key: {} to value: {}", key, value);
+    redis_client
+        .set(key, value)
+        .context("Failed to set key in Redis")?;
+    println!("Key set successfully.");
     Ok(())
 }

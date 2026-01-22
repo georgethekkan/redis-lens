@@ -81,10 +81,27 @@ impl<T: RedisClient> App<T> {
         if let Some(index) = self.list_state.selected()
             && let Some(key) = self.keys.get(index)
         {
-            match self.redis_client.get(key) {
-                Ok(value) => details_text = value,
-                Err(e) => details_text = format!("Error: {}", e),
-            }
+            // Get type
+            let key_type = match self.redis_client.key_type(key) {
+                Ok(t) => format!("Type: {}\n", t),
+                Err(e) => format!("Type: Error - {}\n", e),
+            };
+
+            // Get TTL
+            let ttl_info = match self.redis_client.ttl(key) {
+                Ok(Some(-1)) => "TTL: No expiration\n".to_string(),
+                Ok(Some(ttl)) => format!("TTL: {} seconds\n", ttl),
+                Ok(None) => "TTL: Key does not exist\n".to_string(),
+                Err(e) => format!("TTL: Error - {}\n", e),
+            };
+
+            // Get value
+            let value_info = match self.redis_client.get(key) {
+                Ok(value) => format!("Value:\n{}", value),
+                Err(e) => format!("Value: Error - {}", e),
+            };
+
+            details_text = format!("{}{}{}", key_type, ttl_info, value_info);
         }
 
         let details = Paragraph::new(details_text).block(Block::bordered().title("Details"));
