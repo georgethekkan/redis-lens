@@ -6,20 +6,17 @@ use color_eyre::eyre::{Context, bail};
 use crossterm::ExecutableCommand;
 
 use redis::Commands;
-use redis_lens::redis::{RedisClient, RedisClientImpl, RedisClientMock};
+use redis_lens::redis::RedisClient;
 use redis_lens::{app::App, args};
 
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 
 fn main() -> Result<()> {
     color_eyre::install()?;
+
     let args = args::parse();
 
-    let redis_client: Box<dyn RedisClient> = if args.dry_run {
-        Box::new(RedisClientMock::new("mock".to_string()))
-    } else {
-        Box::new(RedisClientImpl::new(args.url, args.db)?)
-    };
+    let redis_client = RedisClient::new(&args.redis_config)?;
 
     match &args.cmd {
         Some(args::Commands::Get { key }) => get(key, &redis_client),
@@ -32,8 +29,8 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn start_ui(redis_client: Box<dyn RedisClient>) -> Result<()> {
-stdout().execute(EnableMouseCapture)?;
+fn start_ui(redis_client: RedisClient) -> Result<()> {
+    stdout().execute(EnableMouseCapture)?;
     let mut terminal = ratatui::init();
     App::new(redis_client)?.run(&mut terminal)?;
     ratatui::restore();
@@ -41,7 +38,7 @@ stdout().execute(EnableMouseCapture)?;
     Ok(())
 }
 
-fn delete_keys(pattern: &str, redis_client: &dyn RedisClient) -> Result<()> {
+fn delete_keys(pattern: &str, redis_client: &RedisClient) -> Result<()> {
     let keys = redis_client.scan_pattern(pattern)?;
     if keys.is_empty() {
         println!("No keys found matching pattern: {}", pattern);
@@ -55,7 +52,7 @@ fn delete_keys(pattern: &str, redis_client: &dyn RedisClient) -> Result<()> {
     Ok(())
 }
 
-fn get(key: &str, redis_client: &dyn RedisClient) -> Result<()> {
+fn get(key: &str, redis_client: &RedisClient) -> Result<()> {
     println!("Fetching key: {}", key);
     let value: String = redis_client
         .get(key)
@@ -64,7 +61,7 @@ fn get(key: &str, redis_client: &dyn RedisClient) -> Result<()> {
     Ok(())
 }
 
-fn set(key: &str, value: &str, redis_client: &dyn RedisClient) -> Result<()> {
+fn set(key: &str, value: &str, redis_client: &RedisClient) -> Result<()> {
     println!("Setting key: {} to value: {}", key, value);
     redis_client
         .set(key, value)

@@ -2,7 +2,7 @@ use color_eyre::eyre::{Context, Result};
 use r2d2::{Pool, PooledConnection};
 use redis::{Client, Commands, Connection};
 
-use super::RedisClient;
+use crate::args;
 
 pub struct RedisConnectionManager {
     client: Client,
@@ -25,16 +25,16 @@ impl r2d2::ManageConnection for RedisConnectionManager {
     }
 }
 
-pub struct RedisClientImpl {
+pub struct RedisClient {
     pub url: String,
     pub pool: Pool<RedisConnectionManager>,
 }
 
-impl RedisClientImpl {
-    pub fn new(url: String, db: u8) -> Result<RedisClientImpl> {
-        println!("Connecting to Redis at {} using DB {}", url, db);
+impl RedisClient {
+    pub fn new(cfg: &args::RedisConfig) -> Result<RedisClient> {
+        println!("Connecting to Redis at {} using DB {}", cfg.url, cfg.db);
 
-        let url = format!("redis://{}/{}", url, db);
+        let url = build_redis_url(cfg);
 
         let client = Client::open(url.clone()).context("Failed to connect to Redis")?;
 
@@ -42,7 +42,7 @@ impl RedisClientImpl {
 
         let pool = r2d2::Pool::builder().build(manager)?;
 
-        Ok(RedisClientImpl { url, pool })
+        Ok(RedisClient { url, pool })
 
         /*let mut con = client
             .get_connection()
@@ -62,24 +62,40 @@ impl RedisClientImpl {
     }
 }
 
-impl RedisClient for RedisClientImpl {
-    fn url(&self) -> String {
+fn build_redis_url(cfg: &args::RedisConfig) -> String {
+    if let Some(username) = &cfg.username {
+        if let Some(password) = &cfg.password {
+            format!("redis://{}:{}@{}/{}", username, password, cfg.url, cfg.db)
+        } else {
+            format!("redis://{}@{}/{}", username, cfg.url, cfg.db)
+        }
+    } else if let Some(password) = &cfg.password {
+        format!("redis://:{}@{}/{}", password, cfg.url, cfg.db)
+    } else {
+        format!("redis://{}/{}", cfg.url, cfg.db)
+    }
+}
+
+impl RedisClient {
+    pub fn url(&self) -> String {
         self.url.clone()
     }
 
-    fn get(&self, key: &str) -> Result<String> {
+    pub fn get(&self, key: &str) -> Result<String> {
         let mut con = self.get_connection()?;
         let value: String = con.get(key).context("Failed to get key from Redis")?;
         Ok(value)
     }
 
-    fn set(&self, key: &str, value: &str) -> Result<()> {
+    pub fn set(&self, key: &str, value: &str) -> Result<()> {
         let mut con = self.get_connection()?;
-        let _: () = con.set(key.to_string(), value.to_string()).context("Failed to set key in Redis")?;
+        let _: () = con
+            .set(key.to_string(), value.to_string())
+            .context("Failed to set key in Redis")?;
         Ok(())
     }
 
-    fn scan(&self) -> Result<Vec<String>> {
+    pub fn scan(&self) -> Result<Vec<String>> {
         let mut con = self.get_connection()?;
         let keys: Vec<String> = con
             .scan::<Vec<u8>>()
@@ -90,7 +106,7 @@ impl RedisClient for RedisClientImpl {
         Ok(keys)
     }
 
-    fn scan_pattern(&self, pattern: &str) -> Result<Vec<String>> {
+    pub fn scan_pattern(&self, pattern: &str) -> Result<Vec<String>> {
         let mut con = self.get_connection()?;
         let keys: Vec<String> = con
             .scan_match::<&str, Vec<u8>>(pattern)
@@ -101,25 +117,28 @@ impl RedisClient for RedisClientImpl {
         Ok(keys)
     }
 
-    fn del(&self, key: &str) -> Result<()> {
+    pub fn del(&self, key: &str) -> Result<()> {
         let mut con = self.get_connection()?;
         let _: i64 = con.del(key).context("Failed to delete key from Redis")?;
         Ok(())
     }
 
-    fn ttl(&self, key: &str) -> Result<Option<i64>> {
+    pub fn ttl(&self, key: &str) -> Result<Option<i64>> {
         let mut con = self.get_connection()?;
         let ttl: i64 = con.ttl(key).context("Failed to get TTL from Redis")?;
         match ttl {
-            -2 => Ok(None), // Key doesn't exist
+            -2 => Ok(None),     // Key doesn't exist
             -1 => Ok(Some(-1)), // No TTL
             _ => Ok(Some(ttl)),
         }
     }
 
-    fn key_type(&self, key: &str) -> Result<String> {
+    pub fn key_type(&self, key: &str) -> Result<String> {
         let mut con = self.get_connection()?;
-        let key_type: String = redis::cmd("TYPE").arg(key).query(&mut *con).context("Failed to get key type from Redis")?;
+        let key_type: String = redis::cmd("TYPE")
+            .arg(key)
+            .query(&mut *con)
+            .context("Failed to get key type from Redis")?;
         Ok(key_type)
     }
 }
