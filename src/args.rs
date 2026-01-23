@@ -3,17 +3,10 @@ use color_eyre::eyre::Result;
 
 #[derive(Debug, Clone, Parser)]
 pub struct Arg {
-    /// Redis/Valkey server URL
-    #[clap(long, default_value = "localhost:6379")]
-    pub url: String,
 
-    /// Database to use
-    #[clap(long, default_value = "0")]
-    pub db: u8,
+    #[command(flatten)]
+    pub redis_config: RedisConfig,
 
-    /// dry run, do not connect to redis
-    #[clap(short, long)]
-    pub dry_run: bool,
 
     #[command(subcommand)]
     pub cmd: Option<Commands>,
@@ -39,6 +32,25 @@ pub enum Commands {
         /// Pattern to match keys to delete
         pattern: String,
     },
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct RedisConfig {
+    /// Redis server URL
+    #[clap(long, default_value = "localhost:6379")]
+    pub url: String,
+
+    /// Username for Redis authentication
+    #[clap(long)]
+    pub username: Option<String>,
+    
+    /// Password for Redis authentication
+    #[clap(long)]
+    pub password: Option<String>,
+
+    /// Database to use
+    #[clap(long, default_value = "0")]
+    pub db: u8,
 }
 
 #[derive(Debug, Clone, Args)]

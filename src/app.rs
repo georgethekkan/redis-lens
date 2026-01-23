@@ -12,23 +12,23 @@ use ratatui::{DefaultTerminal, Frame};
 
 use super::redis::RedisClient;
 
-#[derive(Debug)]
-pub struct App<T: RedisClient> {
+pub struct App {
     exit: bool,
-    redis_client: T,
+    redis_client: RedisClient,
     keys: Vec<String>,
     list_state: ListState,
 }
 
-impl<T: RedisClient> App<T> {
-    pub fn new(redis_client: T) -> Result<Self> {
+impl App {
+    pub fn new(redis_client: RedisClient) -> Result<Self> {
         let keys = redis_client.scan()?;
-        Ok(Self {
+        let app = Self {
             exit: false,
             redis_client,
             keys,
             list_state: ListState::default(),
-        })
+        };
+        Ok(app)
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
@@ -40,12 +40,28 @@ impl<T: RedisClient> App<T> {
                     KeyCode::Char('q') | KeyCode::Esc => self.exit = true,
                     KeyCode::Down => self.list_state.select_next(),
                     KeyCode::Up => self.list_state.select_previous(),
+                    KeyCode::Char('d') => self.delete_selected_key()?,
                     _ => {}
                 }
             }
 
             if self.exit {
                 break;
+            }
+        }
+        Ok(())
+    }
+
+    fn delete_selected_key(&mut self) -> Result<()> {
+        if let Some(index) = self.list_state.selected() {
+            if let Some(key) = self.keys.get(index) {
+                self.redis_client.del(key)?;
+                self.keys.remove(index);
+                if self.keys.is_empty() {
+                    self.list_state.select(None);
+                } else if index >= self.keys.len() {
+                    self.list_state.select(Some(self.keys.len() - 1));
+                }
             }
         }
         Ok(())
