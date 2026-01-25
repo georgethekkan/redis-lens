@@ -95,15 +95,17 @@ impl RedisClient {
         Ok(())
     }
 
-    pub fn scan(&self) -> Result<Vec<String>> {
+    pub fn scan(&self, cursor: &str, count: usize) -> Result<(String, Vec<String>)> {
         let mut con = self.get_connection()?;
-        let keys: Vec<String> = con
-            .scan::<Vec<u8>>()
-            .context("Failed to get keys from Redis")?
-            .map(|key| key.unwrap())
-            .map(|bytes| String::from_utf8_lossy(&bytes).to_string())
-            .collect();
-        Ok(keys)
+        let (next_cursor, keys): (String, Vec<String>) = redis::cmd("SCAN")
+            .arg(cursor)
+            .arg("MATCH")
+            .arg("*")
+            .arg("COUNT")
+            .arg(count.to_string())
+            .query(&mut con)
+            .context("Failed to scan keys from Redis")?;
+        Ok((next_cursor, keys))
     }
 
     pub fn scan_pattern(&self, pattern: &str) -> Result<Vec<String>> {

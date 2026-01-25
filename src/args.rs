@@ -3,10 +3,8 @@ use color_eyre::eyre::Result;
 
 #[derive(Debug, Clone, Parser)]
 pub struct Arg {
-
     #[command(flatten)]
     pub redis_config: RedisConfig,
-
 
     #[command(subcommand)]
     pub cmd: Option<Commands>,
@@ -32,6 +30,10 @@ pub enum Commands {
         /// Pattern to match keys to delete
         pattern: String,
     },
+    Scan {
+        /// Pattern to match
+        pattern: String,
+    },
 }
 
 #[derive(Debug, Clone, Args)]
@@ -43,7 +45,7 @@ pub struct RedisConfig {
     /// Username for Redis authentication
     #[clap(long)]
     pub username: Option<String>,
-    
+
     /// Password for Redis authentication
     #[clap(long)]
     pub password: Option<String>,

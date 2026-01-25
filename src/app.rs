@@ -16,16 +16,18 @@ pub struct App {
     exit: bool,
     redis_client: RedisClient,
     keys: Vec<String>,
+    next_cursor: String,
     list_state: ListState,
 }
 
 impl App {
     pub fn new(redis_client: RedisClient) -> Result<Self> {
-        let keys = redis_client.scan()?;
+        let (next_cursor, keys) = redis_client.scan("0", 100)?;
         let app = Self {
             exit: false,
             redis_client,
             keys,
+            next_cursor,
             list_state: ListState::default(),
         };
         Ok(app)
@@ -41,6 +43,7 @@ impl App {
                     KeyCode::Down => self.list_state.select_next(),
                     KeyCode::Up => self.list_state.select_previous(),
                     KeyCode::Char('d') => self.delete_selected_key()?,
+                    KeyCode::Char('n') => self.load_next_page()?,
                     _ => {}
                 }
             }
@@ -64,6 +67,17 @@ impl App {
                 }
             }
         }
+        Ok(())
+    }
+
+    fn load_next_page(&mut self) -> Result<()> {
+        if self.next_cursor == "0" {
+            return Ok(());
+        }
+        let (new_cursor, new_keys) = self.redis_client.scan(&self.next_cursor, 100)?;
+        self.next_cursor = new_cursor;
+        self.keys.extend(new_keys);
+        
         Ok(())
     }
 
