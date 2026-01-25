@@ -43,14 +43,6 @@ impl RedisClient {
         let pool = r2d2::Pool::builder().build(manager)?;
 
         Ok(RedisClient { url, pool })
-
-        /*let mut con = client
-            .get_connection()
-            .context("Failed to get Redis connection")?;
-
-        //let keys = con.scan::<String>("*").context("Failed to get keys from Redis")?;
-
-        Ok(())*/
     }
 
     fn get_connection(&self) -> Result<PooledConnection<RedisConnectionManager>> {
@@ -95,7 +87,7 @@ impl RedisClient {
         Ok(())
     }
 
-    pub fn scan(&self, cursor: &str, count: usize) -> Result<(String, Vec<String>)> {
+    pub fn scan(&self, cursor: &str, pattern: &str, count: usize) -> Result<(String, Vec<String>)> {
         let mut con = self.get_connection()?;
         let (next_cursor, keys): (String, Vec<String>) = redis::cmd("SCAN")
             .arg(cursor)
@@ -106,17 +98,6 @@ impl RedisClient {
             .query(&mut con)
             .context("Failed to scan keys from Redis")?;
         Ok((next_cursor, keys))
-    }
-
-    pub fn scan_pattern(&self, pattern: &str) -> Result<Vec<String>> {
-        let mut con = self.get_connection()?;
-        let keys: Vec<String> = con
-            .scan_match::<&str, Vec<u8>>(pattern)
-            .context("Failed to get keys from Redis")?
-            .map(|key| key.unwrap())
-            .map(|bytes| String::from_utf8_lossy(&bytes).to_string())
-            .collect();
-        Ok(keys)
     }
 
     pub fn del(&self, key: &str) -> Result<()> {

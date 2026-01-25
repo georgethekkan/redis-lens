@@ -24,7 +24,7 @@ pub fn start_ui(redis_client: RedisClient) -> Result<()> {
 }
 
 pub fn delete_keys(pattern: &str, redis_client: &RedisClient) -> Result<()> {
-    let keys = redis_client.scan_pattern(pattern)?;
+    let (next, keys) = redis_client.scan("0", pattern, 100)?;
     if keys.is_empty() {
         println!("No keys found matching pattern: {}", pattern);
         return Ok(());
@@ -33,6 +33,9 @@ pub fn delete_keys(pattern: &str, redis_client: &RedisClient) -> Result<()> {
     for key in keys {
         redis_client.del(&key)?;
         println!("Deleted key: {}", key);
+    }
+    if next != "0" {
+        println!("more data left to delete")
     }
     Ok(())
 }
@@ -56,17 +59,11 @@ pub fn set(key: &str, value: &str, redis_client: &RedisClient) -> Result<()> {
 }
 
 pub fn scan(pattern: &str, redis_client: &RedisClient) -> Result<()> {
-    let (next_cursor, keys) = redis_client.scan("0", 100)?;
-
-    /*let keys = redis_client.scan_pattern(pattern)?;
-    if keys.is_empty() {
-        println!("No keys found matching pattern: {}", pattern);
-        return Ok(());
-    }*/
+    let (next, keys) = redis_client.scan("0", "*", 100)?;
 
     println!("Found {} keys (first page): {:?}", keys.len(), keys);
-    if next_cursor != "0" {
-        println!("Next cursor: {}", next_cursor);
+    if next != "0" {
+        println!("Next cursor: {}", next);
     }
 
     Ok(())

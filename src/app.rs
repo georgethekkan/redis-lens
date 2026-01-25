@@ -18,17 +18,19 @@ pub struct App {
     keys: Vec<String>,
     next_cursor: String,
     list_state: ListState,
+    message: Option<String>,
 }
 
 impl App {
     pub fn new(redis_client: RedisClient) -> Result<Self> {
-        let (next_cursor, keys) = redis_client.scan("0", 100)?;
+        let (next_cursor, keys) = redis_client.scan("0", "*", 100)?;
         let app = Self {
             exit: false,
             redis_client,
             keys,
             next_cursor,
             list_state: ListState::default(),
+            message: None,
         };
         Ok(app)
     }
@@ -59,6 +61,7 @@ impl App {
         if let Some(index) = self.list_state.selected() {
             if let Some(key) = self.keys.get(index) {
                 self.redis_client.del(key)?;
+                self.message = Some(format!("Deleted key: {}", key));
                 self.keys.remove(index);
                 if self.keys.is_empty() {
                     self.list_state.select(None);
@@ -74,21 +77,29 @@ impl App {
         if self.next_cursor == "0" {
             return Ok(());
         }
-        let (new_cursor, new_keys) = self.redis_client.scan(&self.next_cursor, 100)?;
+        let (new_cursor, new_keys) = self.redis_client.scan(&self.next_cursor, "*", 100)?;
         self.next_cursor = new_cursor;
         self.keys.extend(new_keys);
-        
+        self.message = Some("Loaded next page of keys.".to_string());
+
         Ok(())
     }
 
     fn draw(&mut self, frame: &mut Frame) -> Result<()> {
+        // Overall layout: main area and help area
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .margin(1)
+            .constraints([Constraint::Percentage(90), Constraint::Percentage(10)]);
+        let [main_area, help_area] = layout.areas(frame.area());
+
+        // Add left and right panels in main_area
         let layout = Layout::default()
             .direction(Direction::Horizontal)
-            .margin(1)
             .constraints([Constraint::Percentage(35), Constraint::Percentage(65)]);
-        let [left, right] = layout.areas(frame.area());
+        let [left, right] = layout.areas(main_area);
 
-        // Left panel: List
+        // Left panel: key list
         let list_items: Vec<ListItem> = self
             .keys
             .iter()
@@ -105,6 +116,17 @@ impl App {
             .highlight_symbol(">> ");
 
         frame.render_stateful_widget(list, left, &mut self.list_state);
+
+        let message = match &self.message {
+            Some(msg) => msg.clone(),
+            None => format!(
+                "{} | q/Esc: Quit | Up/Down: Navigate | d: Delete Key | n: Next Page",
+                self.redis_client.url()
+            ),
+        };
+
+        let details = Paragraph::new(message).block(Block::bordered());
+        frame.render_widget(details, help_area);
 
         // Right panel: Details
         let mut details_text = String::new();
