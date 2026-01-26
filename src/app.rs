@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
-use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::Text;
 use ratatui::widgets::canvas::{Canvas, Map, MapResolution};
@@ -58,16 +58,16 @@ impl App {
     }
 
     fn delete_selected_key(&mut self) -> Result<()> {
-        if let Some(index) = self.list_state.selected() {
-            if let Some(key) = self.keys.get(index) {
-                self.redis_client.del(key)?;
-                self.message = Some(format!("Deleted key: {}", key));
-                self.keys.remove(index);
-                if self.keys.is_empty() {
-                    self.list_state.select(None);
-                } else if index >= self.keys.len() {
-                    self.list_state.select(Some(self.keys.len() - 1));
-                }
+        if let Some(index) = self.list_state.selected()
+            && let Some(key) = self.keys.get(index)
+        {
+            self.redis_client.del(key)?;
+            self.message = Some(format!("Deleted key: {}", key));
+            self.keys.remove(index);
+            if self.keys.is_empty() {
+                self.list_state.select(None);
+            } else if index >= self.keys.len() {
+                self.list_state.select(Some(self.keys.len() - 1));
             }
         }
         Ok(())
@@ -99,6 +99,14 @@ impl App {
             .constraints([Constraint::Percentage(35), Constraint::Percentage(65)]);
         let [left, right] = layout.areas(main_area);
 
+        self.draw_left_menu(frame, left);
+
+        self.draw_help_area(frame, help_area);
+        self.draw_details(frame, right);
+        Ok(())
+    }
+
+    fn draw_left_menu(&mut self, frame: &mut Frame, left: Rect) {
         // Left panel: key list
         let list_items: Vec<ListItem> = self
             .keys
@@ -116,7 +124,9 @@ impl App {
             .highlight_symbol(">> ");
 
         frame.render_stateful_widget(list, left, &mut self.list_state);
+    }
 
+    fn draw_help_area(&self, frame: &mut Frame, help_area: Rect) {
         let message = match &self.message {
             Some(msg) => msg.clone(),
             None => format!(
@@ -127,7 +137,9 @@ impl App {
 
         let details = Paragraph::new(message).block(Block::bordered());
         frame.render_widget(details, help_area);
+    }
 
+    fn draw_details(&self, frame: &mut Frame, right: Rect) {
         // Right panel: Details
         let mut details_text = String::new();
         if let Some(index) = self.list_state.selected()
@@ -156,9 +168,7 @@ impl App {
             details_text = format!("{}{}{}", key_type, ttl_info, value_info);
         }
 
-        let details = Paragraph::new(details_text).block(Block::bordered().title("Details"));
+        let details = Paragraph::new(details_text.red()).block(Block::bordered().title("Details"));
         frame.render_widget(details, right);
-
-        Ok(())
     }
 }
