@@ -4,7 +4,6 @@ use crossterm::event::{self, Event, KeyCode};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Direction, Layout},
-    text::Line,
     widgets::{Block, Widget, canvas::Canvas},
 };
 
@@ -66,7 +65,7 @@ impl App {
     }
 }
 
-fn handle_key_event(arg: &mut App, terminal: &mut DefaultTerminal) -> Result<(), io::Error> {
+fn handle_key_event(arg: &mut App, _terminal: &mut DefaultTerminal) -> Result<(), io::Error> {
     if event::poll(Duration::from_millis(100))?
         && let Event::Key(key) = event::read()?
     {
