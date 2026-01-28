@@ -1,15 +1,26 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Row, Table, Widget};
+use ratatui::widgets::{Block, Borders, Cell, List, ListItem, Paragraph, Row, Table, Widget};
 
 use crate::app::App;
 
 pub fn draw(frame: &mut Frame, app: &App, right: Rect) {
     let rows = build_detail_rows(&app);
+    let header = Row::new(vec![
+        Cell::from("Field").style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Cell::from("Value").style(Style::default().fg(Color::White)),
+    ]);
+
     let table = Table::new(rows, &[Constraint::Length(12), Constraint::Min(0)])
-        .block(Block::bordered().title("Details"))
-        .style(Style::default())
+        .header(header)
+        .block(Block::default().borders(Borders::ALL).title("Details"))
+        .style(Style::default().fg(Color::White))
+        .widths(&[Constraint::Length(20), Constraint::Min(0)])
         .column_spacing(1);
 
     frame.render_widget(table, right);
