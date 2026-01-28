@@ -13,6 +13,7 @@ use crate::redis::RedisClient;
 pub mod app;
 pub mod args;
 pub mod redis;
+pub mod ui;
 
 pub fn start_ui(redis_client: RedisClient) -> Result<()> {
     stdout().execute(EnableMouseCapture)?;
