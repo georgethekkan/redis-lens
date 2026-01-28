@@ -124,4 +124,74 @@ impl RedisClient {
             .context("Failed to get key type from Redis")?;
         Ok(key_type)
     }
+
+    // List operations
+    pub fn llen(&self, key: &str) -> Result<i64> {
+        let mut con = self.get_connection()?;
+        let len: i64 = con.llen(key).context("Failed to get list length")?;
+        Ok(len)
+    }
+
+    pub fn lrange(&self, key: &str, start: i64, stop: i64) -> Result<Vec<String>> {
+        let mut con = self.get_connection()?;
+        let items: Vec<String> = con
+            .lrange(key, start as isize, stop as isize)
+            .context("Failed to get list range")?;
+        Ok(items)
+    }
+
+    // Hash operations
+    pub fn hlen(&self, key: &str) -> Result<i64> {
+        let mut con = self.get_connection()?;
+        let len: i64 = con.hlen(key).context("Failed to get hash length")?;
+        Ok(len)
+    }
+
+    pub fn hgetall(&self, key: &str) -> Result<Vec<(String, String)>> {
+        let mut con = self.get_connection()?;
+        let data: Vec<(String, String)> = redis::cmd("HGETALL")
+            .arg(key)
+            .query(&mut con)
+            .context("Failed to get hash data")?;
+        Ok(data)
+    }
+
+    // Set operations
+    pub fn scard(&self, key: &str) -> Result<i64> {
+        let mut con = self.get_connection()?;
+        let count: i64 = con.scard(key).context("Failed to get set cardinality")?;
+        Ok(count)
+    }
+
+    pub fn smembers(&self, key: &str) -> Result<Vec<String>> {
+        let mut con = self.get_connection()?;
+        let members: Vec<String> = con.smembers(key).context("Failed to get set members")?;
+        Ok(members)
+    }
+
+    // Sorted Set operations
+    pub fn zcard(&self, key: &str) -> Result<i64> {
+        let mut con = self.get_connection()?;
+        let count: i64 = con.zcard(key).context("Failed to get sorted set cardinality")?;
+        Ok(count)
+    }
+
+    pub fn zrange_with_scores(&self, key: &str, start: i64, stop: i64) -> Result<Vec<(String, f64)>> {
+        let mut con = self.get_connection()?;
+        let items: Vec<(String, f64)> = redis::cmd("ZRANGE")
+            .arg(key)
+            .arg(start)
+            .arg(stop)
+            .arg("WITHSCORES")
+            .query(&mut con)
+            .context("Failed to get sorted set range")?;
+        Ok(items)
+    }
+
+    // String operations
+    pub fn strlen(&self, key: &str) -> Result<i64> {
+        let mut con = self.get_connection()?;
+        let len: i64 = con.strlen(key).context("Failed to get string length")?;
+        Ok(len)
+    }
 }

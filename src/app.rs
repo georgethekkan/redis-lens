@@ -12,6 +12,15 @@ use ratatui::{DefaultTerminal, Frame};
 
 use super::redis::RedisClient;
 
+#[derive(Clone, Debug)]
+pub enum CollectionData {
+    String(String),
+    List(Vec<String>),
+    Hash(Vec<(String, String)>),
+    Set(Vec<String>),
+    ZSet(Vec<(String, f64)>),
+}
+
 pub struct App {
     exit: bool,
     redis_client: RedisClient,
@@ -19,6 +28,9 @@ pub struct App {
     next: String,
     list_state: ListState,
     message: Option<String>,
+    // Collection pagination
+    collection_page: usize,
+    collection_page_size: usize,
 }
 
 impl App {
@@ -36,6 +48,8 @@ impl App {
             next,
             list_state: ListState::default(),
             message,
+            collection_page: 0,
+            collection_page_size: 50,
         };
 
         Ok(app)
@@ -63,6 +77,8 @@ impl App {
             KeyCode::Up => self.list_state.select_previous(),
             KeyCode::Char('d') => self.delete_selected_key()?,
             KeyCode::Char('n') => self.load_next_page()?,
+            KeyCode::Right => self.next_collection_page(),
+            KeyCode::Left => self.prev_collection_page(),
             _ => {}
         }
         Ok(())
@@ -94,6 +110,16 @@ impl App {
         self.message = Some("Loaded next page of keys.".to_string());
 
         Ok(())
+    }
+
+    fn next_collection_page(&mut self) {
+        self.collection_page += 1;
+    }
+
+    fn prev_collection_page(&mut self) {
+        if self.collection_page > 0 {
+            self.collection_page -= 1;
+        }
     }
 
     fn draw(&mut self, frame: &mut Frame) -> Result<()> {
@@ -141,7 +167,7 @@ impl App {
         let message = match &self.message {
             Some(msg) => msg.clone(),
             None => format!(
-                "{} | q/Esc: Quit | Up/Down: Navigate | d: Delete Key | n: Next Page",
+                "{} | q: Quit | ↑↓: Navigate | d: Delete | n: Next Keys | ←→: Page Collection",
                 self.redis_client.url()
             ),
         };
@@ -151,7 +177,7 @@ impl App {
     }
 
     fn draw_details(&self, frame: &mut Frame, right: Rect) {
-        // Right panel: Details
+        // Right panel: Details based on data type
         let rows = if let Some(index) = self.list_state.selected()
             && let Some(key) = self.keys.get(index)
         {
@@ -167,21 +193,109 @@ impl App {
                 Err(e) => format!("Error - {}", e),
             };
 
-            let value_info = match self.redis_client.get(key) {
-                Ok(value) => value,
-                Err(e) => format!("Error - {}", e),
-            };
-
-            vec![
-                Row::new(vec!["Type".to_string(), key_type]),
+            let mut rows = vec![
+                Row::new(vec!["Key".to_string(), key.clone()]),
+                Row::new(vec!["Type".to_string(), key_type.clone()]),
                 Row::new(vec!["TTL".to_string(), ttl_info]),
-                Row::new(vec!["Value".to_string(), value_info]),
-            ]
+            ];
+
+            // Type-specific data
+            match key_type.as_str() {
+                "string" => {
+                    let value_info = match self.redis_client.get(key) {
+                        Ok(value) => {
+                            let len = match self.redis_client.strlen(key) {
+                                Ok(l) => l,
+                                Err(_) => 0,
+                            };
+                            format!("{} ({} bytes)", value, len)
+                        }
+                        Err(e) => format!("Error - {}", e),
+                    };
+                    rows.push(Row::new(vec!["Value".to_string(), value_info]));
+                }
+                "list" => {
+                    match self.redis_client.llen(key) {
+                        Ok(len) => {
+                            rows.push(Row::new(vec!["Length".to_string(), len.to_string()]));
+                            // Get paginated items
+                            let start = (self.collection_page * self.collection_page_size) as i64;
+                            let stop = start + self.collection_page_size as i64 - 1;
+                            if let Ok(items) = self.redis_client.lrange(key, start, stop) {
+                                for (i, item) in items.iter().enumerate() {
+                                    let idx = start as usize + i;
+                                    rows.push(Row::new(vec![
+                                        format!("[{}]", idx),
+                                        item.clone(),
+                                    ]));
+                                }
+                            }
+                        }
+                        Err(e) => rows.push(Row::new(vec!["Error".to_string(), format!("{}", e)])),
+                    }
+                }
+                "hash" => {
+                    match self.redis_client.hlen(key) {
+                        Ok(len) => {
+                            rows.push(Row::new(vec!["Fields".to_string(), len.to_string()]));
+                            // Get all hash data and paginate
+                            if let Ok(data) = self.redis_client.hgetall(key) {
+                                let start = self.collection_page * self.collection_page_size;
+                                let end = std::cmp::min(start + self.collection_page_size, data.len());
+                                for (field, value) in &data[start..end] {
+                                    rows.push(Row::new(vec![field.clone(), value.clone()]));
+                                }
+                            }
+                        }
+                        Err(e) => rows.push(Row::new(vec!["Error".to_string(), format!("{}", e)])),
+                    }
+                }
+                "set" => {
+                    match self.redis_client.scard(key) {
+                        Ok(count) => {
+                            rows.push(Row::new(vec!["Members".to_string(), count.to_string()]));
+                            // Get all members and paginate
+                            if let Ok(members) = self.redis_client.smembers(key) {
+                                let start = self.collection_page * self.collection_page_size;
+                                let end = std::cmp::min(start + self.collection_page_size, members.len());
+                                for member in &members[start..end] {
+                                    rows.push(Row::new(vec!["Member".to_string(), member.clone()]));
+                                }
+                            }
+                        }
+                        Err(e) => rows.push(Row::new(vec!["Error".to_string(), format!("{}", e)])),
+                    }
+                }
+                "zset" => {
+                    match self.redis_client.zcard(key) {
+                        Ok(count) => {
+                            rows.push(Row::new(vec!["Members".to_string(), count.to_string()]));
+                            // Get paginated items with scores
+                            let start = (self.collection_page * self.collection_page_size) as i64;
+                            let stop = start + self.collection_page_size as i64 - 1;
+                            if let Ok(items) = self.redis_client.zrange_with_scores(key, start, stop) {
+                                for (member, score) in items {
+                                    rows.push(Row::new(vec![
+                                        member,
+                                        format!("{:.2}", score),
+                                    ]));
+                                }
+                            }
+                        }
+                        Err(e) => rows.push(Row::new(vec!["Error".to_string(), format!("{}", e)])),
+                    }
+                }
+                _ => {
+                    rows.push(Row::new(vec!["Status".to_string(), "Unknown type".to_string()]));
+                }
+            }
+
+            rows
         } else {
             vec![]
         };
 
-        let table = Table::new(rows, &[Constraint::Length(10), Constraint::Min(0)])
+        let table = Table::new(rows, &[Constraint::Length(12), Constraint::Min(0)])
             .block(Block::bordered().title("Details"))
             .style(Style::default())
             .column_spacing(1);
