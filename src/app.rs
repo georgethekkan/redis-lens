@@ -54,6 +54,10 @@ pub struct App {
     pub tree_root: TreeNode,
     pub flattened_items: Vec<(String, bool, usize, bool)>, // (name, is_key, depth, is_expanded)
     pub flattened_paths: Vec<String>,                      // parallel to items, stores full path
+    // Search & Filtering
+    pub filter_pattern: String,
+    pub search_query: String,
+    pub is_searching: bool,
 }
 
 impl App {
@@ -75,6 +79,9 @@ impl App {
             tree_root: TreeNode::default(),
             flattened_items: vec![],
             flattened_paths: vec![],
+            filter_pattern: "*".to_string(),
+            search_query: String::new(),
+            is_searching: false,
         };
 
         app.rebuild_tree();
@@ -162,8 +169,32 @@ impl App {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        if self.is_searching {
+            match key.code {
+                KeyCode::Enter => {
+                    self.confirm_search()?;
+                }
+                KeyCode::Esc => {
+                    self.is_searching = false;
+                    self.search_query.clear();
+                }
+                KeyCode::Char(c) => {
+                    self.search_query.push(c);
+                }
+                KeyCode::Backspace => {
+                    self.search_query.pop();
+                }
+                _ => {}
+            }
+            return Ok(());
+        }
+
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.exit = true,
+            KeyCode::Char('/') => {
+                self.is_searching = true;
+                self.search_query.clear();
+            }
             KeyCode::Down => {
                 self.list_state.select_next();
                 self.handle_selection_change()?;
@@ -177,15 +208,14 @@ impl App {
             }
             KeyCode::Char('d') => self.delete_selected_key()?,
             // For now disable pagination of key list via 'n' since we are in tree mode
-            // KeyCode::Char('n') => self.load_next_page()?,
+            KeyCode::Char('n') => self.load_next_page()?,
+
             KeyCode::Right => {
                 // If folder and collapsed, expand.
                 self.expand_current();
             }
             KeyCode::Left => {
                 // If folder and expanded, collapse.
-                // If collapsed or key, go to parent (not easily doable without parent ptr or re-search).
-                // Initial impl: just collapse if expanded.
                 self.collapse_current();
             }
 
@@ -204,6 +234,34 @@ impl App {
                 }
             }
         }
+        Ok(())
+    }
+
+    fn confirm_search(&mut self) -> Result<()> {
+        self.is_searching = false;
+
+        let pattern = if self.search_query.is_empty() {
+            "*".to_string()
+        } else if self.search_query.contains('*') {
+            self.search_query.clone()
+        } else {
+            format!("{}*", self.search_query)
+        };
+
+        self.filter_pattern = pattern;
+
+        // Reset keys and performing scan
+        let (next, keys) = self.redis_client.scan("0", &self.filter_pattern, 100)?;
+        self.next = next;
+        self.keys = keys;
+
+        // Reset selection and rebuild tree
+        self.list_state.select(None);
+        self.loaded_key = None;
+        self.rebuild_tree();
+
+        self.message = Some(format!("Searching for: {}", self.filter_pattern));
+
         Ok(())
     }
 
@@ -404,7 +462,9 @@ impl App {
         if self.next == "0" {
             return Ok(());
         }
-        let (new_cursor, new_keys) = self.redis_client.scan(&self.next, "*", 100)?;
+        let (new_cursor, new_keys) =
+            self.redis_client
+                .scan(&self.next, &self.filter_pattern, 100)?;
         self.next = new_cursor;
         self.keys.extend(new_keys);
         self.message = Some("Loaded next page of keys.".to_string());
