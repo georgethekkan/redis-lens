@@ -3,10 +3,10 @@
 ## 🎯 Priority Features (High Impact)
 
 ### 1. Data Structure Support
-- [ ] List support: Browse list elements with pagination
-- [ ] Hash support: Display field-value pairs in table format
-- [ ] Set support: Show set members with count
-- [ ] Sorted Set support: Display members with scores
+- [x] List support: Browse list elements with pagination
+- [x] Hash support: Display field-value pairs in table format
+- [x] Set support: Show set members with count
+- [x] Sorted Set support: Display members with scores
 - [ ] Stream support: View stream entries with timestamps
 
 ### 2. Search & Filtering
@@ -75,7 +75,7 @@
 ## 🛠️ Code Quality
 
 - [ ] Add unit tests for RedisClient
-- [ ] Refactor redis.rs into redis/mod.rs with subtypes
+- [x] Refactor redis.rs into redis/mod.rs with subtypes
 - [ ] Extend mock client with realistic test data
 - [ ] Add debug logging mode
 - [ ] Improve error context messages

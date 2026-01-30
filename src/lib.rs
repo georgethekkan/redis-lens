@@ -9,6 +9,7 @@ use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 
 use crate::app::App;
 use crate::redis::RedisClient;
+use crate::redis::commands::*;
 
 pub mod app;
 pub mod args;
