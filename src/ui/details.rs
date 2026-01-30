@@ -4,8 +4,9 @@ use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, Wrap};
 
 use crate::app::{App, CollectionData, LoadedKeyData};
+use crate::redis::RedisOps;
 
-pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
+pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
     // Check if we have a loaded key
     let Some(data) = &app.loaded_key else {
         let block = Block::default()
@@ -65,7 +66,7 @@ fn draw_metadata(frame: &mut Frame, data: &LoadedKeyData, area: Rect) {
     frame.render_widget(Paragraph::new(ttl_text).fg(Color::Green), layout[2]);
 }
 
-fn draw_content(frame: &mut Frame, app: &App, data: &LoadedKeyData, area: Rect) {
+fn draw_content<R: RedisOps>(frame: &mut Frame, app: &App<R>, data: &LoadedKeyData, area: Rect) {
     let block = Block::default()
         .title(" Content ")
         .borders(Borders::ALL)

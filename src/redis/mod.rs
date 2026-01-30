@@ -27,9 +27,28 @@ impl r2d2::ManageConnection for RedisConnectionManager {
     }
 }
 
+pub trait RedisOps:
+    commands::KeyCommands
+    + commands::StringCommands
+    + commands::HashCommands
+    + commands::ListCommands
+    + commands::SetCommands
+    + commands::SortedSetCommands
+    + Send
+    + Sync
+{
+    fn url(&self) -> String;
+}
+
 pub struct RedisClient {
     pub url: String,
     pub pool: Pool<RedisConnectionManager>,
+}
+
+impl RedisOps for RedisClient {
+    fn url(&self) -> String {
+        self.url.clone()
+    }
 }
 
 impl RedisClient {
@@ -56,10 +75,6 @@ impl RedisClient {
             .get_timeout(std::time::Duration::from_secs(5))
             .context("Failed to get Redis connection")?;
         Ok(conn)
-    }
-
-    pub fn url(&self) -> String {
-        self.url.clone()
     }
 }
 

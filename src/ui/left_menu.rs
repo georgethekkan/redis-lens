@@ -4,13 +4,15 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Table, Widget};
 
 use crate::app::App;
+use crate::redis::RedisOps;
 
-pub fn draw(frame: &mut Frame, app: &mut App, left: Rect) {
+pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, left: Rect) {
     // Left panel: key tree
     let list_items: Vec<ListItem> = app
+        .tree
         .flattened_items
         .iter()
-        .map(|(name, is_key, depth, is_expanded)| {
+        .map(|(name, is_key, depth, is_expanded, key_type)| {
             let indent = "  ".repeat(*depth);
             let symbol = if *is_key {
                 "•"

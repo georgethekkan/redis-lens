@@ -14,6 +14,7 @@ use crate::redis::commands::*;
 pub mod app;
 pub mod args;
 pub mod redis;
+pub mod tree;
 pub mod ui;
 
 pub fn start_ui(redis_client: RedisClient) -> Result<()> {
