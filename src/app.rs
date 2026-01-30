@@ -1,5 +1,5 @@
 use color_eyre::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEvent};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::DefaultTerminal;
 use ratatui::widgets::{ListState, Row};
 
@@ -156,8 +156,10 @@ impl App {
             terminal.draw(|f| ui::draw(f, self))?;
 
             if let Event::Key(key) = event::read()? {
-                tracing::debug!("Key event: {:?}", key);
-                self.handle_key_event(key)?;
+                if key.kind == KeyEventKind::Press {
+                    tracing::debug!("Key event: {:?}", key);
+                    self.handle_key_event(key)?;
+                }
             }
 
             if self.exit {
