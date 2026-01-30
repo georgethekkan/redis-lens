@@ -8,6 +8,7 @@ pub trait KeyCommands {
     fn del(&self, key: &str) -> Result<()>;
     fn ttl(&self, key: &str) -> Result<Option<i64>>;
     fn key_type(&self, key: &str) -> Result<String>;
+    fn delete_all(&self, pattern: &str) -> Result<usize>;
 }
 
 impl KeyCommands for RedisClient {
@@ -47,5 +48,23 @@ impl KeyCommands for RedisClient {
             .query(&mut *con)
             .context("Failed to get key type from Redis")?;
         Ok(key_type)
+    }
+
+    fn delete_all(&self, pattern: &str) -> Result<usize> {
+        let mut cursor = "0".to_string();
+        let mut total_deleted = 0;
+        loop {
+            let (next, keys) = self.scan(&cursor, pattern, 100)?;
+            if !keys.is_empty() {
+                let mut con = self.get_connection()?;
+                let _: () = con.del(&keys).context("Failed to delete batch of keys")?;
+                total_deleted += keys.len();
+            }
+            cursor = next;
+            if cursor == "0" {
+                break;
+            }
+        }
+        Ok(total_deleted)
     }
 }

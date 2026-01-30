@@ -7,6 +7,7 @@ pub trait SetCommands {
     fn scard(&self, key: &str) -> Result<i64>;
     fn smembers(&self, key: &str) -> Result<Vec<String>>;
     fn sscan(&self, key: &str, cursor: &str, count: usize) -> Result<(String, Vec<String>)>;
+    fn sadd(&self, key: &str, member: &str) -> Result<()>;
 }
 
 impl SetCommands for RedisClient {
@@ -32,5 +33,11 @@ impl SetCommands for RedisClient {
             .query(&mut con)
             .context("Failed to sscan")?;
         Ok(res)
+    }
+
+    fn sadd(&self, key: &str, member: &str) -> Result<()> {
+        let mut con = self.get_connection()?;
+        let _: () = con.sadd(key, member).context("Failed to sadd")?;
+        Ok(())
     }
 }

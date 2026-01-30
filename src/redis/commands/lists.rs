@@ -6,6 +6,7 @@ use crate::redis::RedisClient;
 pub trait ListCommands {
     fn llen(&self, key: &str) -> Result<i64>;
     fn lrange(&self, key: &str, start: i64, stop: i64) -> Result<Vec<String>>;
+    fn rpush(&self, key: &str, value: &str) -> Result<()>;
 }
 
 impl ListCommands for RedisClient {
@@ -21,5 +22,11 @@ impl ListCommands for RedisClient {
             .lrange(key, start as isize, stop as isize)
             .context("Failed to get list range")?;
         Ok(items)
+    }
+
+    fn rpush(&self, key: &str, value: &str) -> Result<()> {
+        let mut con = self.get_connection()?;
+        let _: () = con.rpush(key, value).context("Failed to rpush")?;
+        Ok(())
     }
 }
