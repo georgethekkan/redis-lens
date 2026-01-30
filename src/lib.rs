@@ -9,10 +9,12 @@ use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 
 use crate::app::App;
 use crate::redis::RedisClient;
+use crate::redis::commands::*;
 
 pub mod app;
 pub mod args;
 pub mod redis;
+pub mod ui;
 
 pub fn start_ui(redis_client: RedisClient) -> Result<()> {
     stdout().execute(EnableMouseCapture)?;
@@ -24,18 +26,12 @@ pub fn start_ui(redis_client: RedisClient) -> Result<()> {
 }
 
 pub fn delete_keys(pattern: &str, redis_client: &RedisClient) -> Result<()> {
-    let (next, keys) = redis_client.scan("0", pattern, 100)?;
-    if keys.is_empty() {
+    println!("Deleting keys matching pattern: {}", pattern);
+    let count = redis_client.delete_all(pattern)?;
+    if count == 0 {
         println!("No keys found matching pattern: {}", pattern);
-        return Ok(());
-    }
-    println!("Deleting {} keys matching pattern: {}", keys.len(), pattern);
-    for key in keys {
-        redis_client.del(&key)?;
-        println!("Deleted key: {}", key);
-    }
-    if next != "0" {
-        println!("more data left to delete")
+    } else {
+        println!("Deleted {} keys matching pattern: {}", count, pattern);
     }
     Ok(())
 }
