@@ -7,6 +7,17 @@ use super::redis::RedisClient;
 use super::redis::commands::*;
 use super::ui;
 
+use std::collections::BTreeMap;
+
+#[derive(Clone, Debug, Default)]
+pub struct TreeNode {
+    pub name: String,
+    pub full_path: String,
+    pub children: BTreeMap<String, TreeNode>,
+    pub is_expanded: bool,
+    pub is_key: bool,
+}
+
 #[derive(Clone, Debug)]
 pub enum CollectionData {
     String(String, usize), // Value, length (bytes)
@@ -39,6 +50,10 @@ pub struct App {
     pub collection_page: usize,
     pub collection_page_size: usize,
     pub collection_cursors: Vec<String>,
+    // Tree view
+    pub tree_root: TreeNode,
+    pub flattened_items: Vec<(String, bool, usize, bool)>, // (name, is_key, depth, is_expanded)
+    pub flattened_paths: Vec<String>,                      // parallel to items, stores full path
 }
 
 impl App {
@@ -46,10 +61,10 @@ impl App {
         let (next, keys) = redis_client.scan("0", "*", 100)?;
         let message = None;
 
-        let app = Self {
+        let mut app = Self {
             exit: false,
             redis_client,
-            keys,
+            keys: keys.clone(),
             next,
             list_state: ListState::default(),
             message,
@@ -57,9 +72,75 @@ impl App {
             collection_page: 0,
             collection_page_size: 50,
             collection_cursors: vec!["0".to_string()],
+            tree_root: TreeNode::default(),
+            flattened_items: vec![],
+            flattened_paths: vec![],
         };
 
+        app.rebuild_tree();
         Ok(app)
+    }
+
+    pub fn rebuild_tree(&mut self) {
+        self.tree_root = TreeNode::default();
+        for key in &self.keys {
+            let parts: Vec<&str> = key.split(':').collect();
+            let mut current = &mut self.tree_root;
+            let mut path_acc = String::new();
+
+            for (i, part) in parts.iter().enumerate() {
+                if !path_acc.is_empty() {
+                    path_acc.push(':');
+                }
+                path_acc.push_str(part);
+
+                let is_last = i == parts.len() - 1;
+
+                if !current.children.contains_key(*part) {
+                    let node = TreeNode {
+                        name: part.to_string(),
+                        full_path: path_acc.clone(),
+                        children: BTreeMap::new(),
+                        is_expanded: false, // Default collapsed
+                        is_key: false,
+                    };
+                    current.children.insert(part.to_string(), node);
+                }
+
+                current = current.children.get_mut(*part).unwrap();
+                if is_last {
+                    current.is_key = true;
+                }
+            }
+        }
+        self.flatten_tree();
+    }
+
+    pub fn flatten_tree(&mut self) {
+        let mut items = vec![];
+        let mut paths = vec![];
+
+        Self::flatten_recursive(&self.tree_root, 0, &mut items, &mut paths);
+
+        self.flattened_items = items;
+        self.flattened_paths = paths;
+    }
+
+    fn flatten_recursive(
+        node: &TreeNode,
+        depth: usize,
+        items: &mut Vec<(String, bool, usize, bool)>,
+        paths: &mut Vec<String>,
+    ) {
+        for child in node.children.values() {
+            // (Name, IsKey, Depth, IsExpanded)
+            items.push((child.name.clone(), child.is_key, depth, child.is_expanded));
+            paths.push(child.full_path.clone());
+
+            if child.is_expanded {
+                Self::flatten_recursive(child, depth + 1, items, paths);
+            }
+        }
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
@@ -85,78 +166,131 @@ impl App {
             KeyCode::Char('q') | KeyCode::Esc => self.exit = true,
             KeyCode::Down => {
                 self.list_state.select_next();
-                self.fetch_selected_key_details()?;
+                self.handle_selection_change()?;
             }
             KeyCode::Up => {
                 self.list_state.select_previous();
-                self.fetch_selected_key_details()?;
+                self.handle_selection_change()?;
+            }
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                self.toggle_expanded();
             }
             KeyCode::Char('d') => self.delete_selected_key()?,
-            KeyCode::Char('n') => {
-                self.load_next_page()?;
-                // If selection was out of bounds or None, it might be valid now?
-                // But usually 'n' adds keys to end.
-            }
+            // For now disable pagination of key list via 'n' since we are in tree mode
+            // KeyCode::Char('n') => self.load_next_page()?,
             KeyCode::Right => {
-                self.next_collection_page();
-                self.fetch_selected_key_details()?;
+                // If folder and collapsed, expand.
+                self.expand_current();
             }
             KeyCode::Left => {
-                self.prev_collection_page();
-                self.fetch_selected_key_details()?;
+                // If folder and expanded, collapse.
+                // If collapsed or key, go to parent (not easily doable without parent ptr or re-search).
+                // Initial impl: just collapse if expanded.
+                self.collapse_current();
             }
-            _ => {}
+
+            _ => {
+                // Existing collection pagination logic
+                match key.code {
+                    KeyCode::Char('l') => {
+                        self.next_collection_page();
+                        self.fetch_selected_key_details()?;
+                    }
+                    KeyCode::Char('h') => {
+                        self.prev_collection_page();
+                        self.fetch_selected_key_details()?;
+                    }
+                    _ => {}
+                }
+            }
         }
         Ok(())
     }
 
-    fn delete_selected_key(&mut self) -> Result<()> {
-        let Some(index) = self.list_state.selected() else {
-            return Ok(());
-        };
-        let Some(key) = self.keys.get(index) else {
-            return Ok(());
-        };
-
-        self.redis_client.del(key)?;
-        self.message = Some(format!("Deleted key: {}", key));
-        self.keys.remove(index);
-
-        // Adjust selection
-        if self.keys.is_empty() {
-            self.list_state.select(None);
-        } else if index >= self.keys.len() {
-            self.list_state.select(Some(self.keys.len() - 1));
-        }
-
-        // Refresh details
-        self.fetch_selected_key_details()?;
-
-        Ok(())
-    }
-
-    fn load_next_page(&mut self) -> Result<()> {
-        if self.next == "0" {
-            return Ok(());
-        }
-        let (new_cursor, new_keys) = self.redis_client.scan(&self.next, "*", 100)?;
-        self.next = new_cursor;
-        self.keys.extend(new_keys);
-        self.message = Some("Loaded next page of keys.".to_string());
-
-        Ok(())
-    }
-
-    pub fn fetch_selected_key_details(&mut self) -> Result<()> {
+    fn handle_selection_change(&mut self) -> Result<()> {
+        // Check if selected item is a key
         let Some(index) = self.list_state.selected() else {
             self.loaded_key = None;
             return Ok(());
         };
-        let Some(key) = self.keys.get(index) else {
-            self.loaded_key = None;
-            return Ok(());
-        };
-        let key = key.clone();
+
+        if let Some((_, is_key, _, _)) = self.flattened_items.get(index) {
+            if *is_key {
+                // Fetch details
+                // We need the full path
+                if let Some(path) = self.flattened_paths.get(index).cloned() {
+                    // We need to set up 'loaded_key' based on this path
+                    self.fetch_details_for_key(&path)?;
+                }
+            } else {
+                self.loaded_key = None;
+            }
+        }
+        Ok(())
+    }
+
+    fn toggle_expanded(&mut self) {
+        if let Some(index) = self.list_state.selected() {
+            if let Some(path) = self.flattened_paths.get(index).cloned() {
+                // Find node and toggle
+                self.toggle_node_expansion(&path);
+                self.flatten_tree();
+            }
+        }
+    }
+
+    fn expand_current(&mut self) {
+        if let Some(index) = self.list_state.selected() {
+            if let Some(path) = self.flattened_paths.get(index).cloned() {
+                self.set_node_expansion(&path, true);
+                self.flatten_tree();
+            }
+        }
+    }
+
+    fn collapse_current(&mut self) {
+        if let Some(index) = self.list_state.selected() {
+            if let Some(path) = self.flattened_paths.get(index).cloned() {
+                self.set_node_expansion(&path, false);
+                self.flatten_tree();
+            }
+        }
+    }
+
+    fn toggle_node_expansion(&mut self, path: &str) {
+        let parts: Vec<&str> = path.split(':').collect();
+        let mut current = &mut self.tree_root;
+        for part in parts {
+            if let Some(node) = current.children.get_mut(part) {
+                current = node;
+            } else {
+                return;
+            }
+        }
+        current.is_expanded = !current.is_expanded;
+    }
+
+    fn set_node_expansion(&mut self, path: &str, expanded: bool) {
+        let parts: Vec<&str> = path.split(':').collect();
+        let mut current = &mut self.tree_root;
+        for part in parts {
+            if let Some(node) = current.children.get_mut(part) {
+                current = node;
+            } else {
+                return;
+            }
+        }
+        current.is_expanded = expanded;
+    }
+
+    pub fn fetch_details_for_key(&mut self, key: &str) -> Result<()> {
+        // Logic previously in fetch_selected_key_details, but taking key arg
+        // Reuse code by extracting common logic or just copy-paste with adjustments for now to avoid massive refactor risk
+        // Actually, let's keep `fetch_selected_key_details` as the method that uses `list_state`?
+        // No, because list_state now points to a tree node, which might not correspond to `self.keys` index.
+        // So we need a new method `fetch_details_for_key`.
+
+        let key = key.to_string();
 
         // 1. Get Type
         let key_type = self
@@ -234,6 +368,71 @@ impl App {
             content,
         });
 
+        Ok(())
+    }
+
+    fn delete_selected_key(&mut self) -> Result<()> {
+        if let Some(index) = self.list_state.selected() {
+            if let Some(path) = self.flattened_paths.get(index).cloned() {
+                let (_, is_key, _, _) = self.flattened_items[index];
+                if is_key {
+                    self.redis_client.del(&path)?;
+                    self.message = Some(format!("Deleted key: {}", path));
+
+                    // Helper functionality to remove key from tree without full scan?
+                    // For now, full rebuild is safer and easier.
+                    if let Some(pos) = self.keys.iter().position(|k| *k == path) {
+                        self.keys.remove(pos);
+                    }
+                    self.rebuild_tree();
+
+                    // Reset selection?? Or try to keep index?
+                    // If index exists in new tree, fine.
+                    if index >= self.flattened_items.len() {
+                        self.list_state.select(None);
+                    }
+                    self.loaded_key = None;
+                } else {
+                    self.message = Some("Cannot delete folder yet".to_string());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn load_next_page(&mut self) -> Result<()> {
+        if self.next == "0" {
+            return Ok(());
+        }
+        let (new_cursor, new_keys) = self.redis_client.scan(&self.next, "*", 100)?;
+        self.next = new_cursor;
+        self.keys.extend(new_keys);
+        self.message = Some("Loaded next page of keys.".to_string());
+
+        // Rebuild tree with new keys
+        self.rebuild_tree();
+
+        Ok(())
+    }
+
+    pub fn fetch_selected_key_details(&mut self) -> Result<()> {
+        let Some(index) = self.list_state.selected() else {
+            self.loaded_key = None;
+            return Ok(());
+        };
+
+        let path = if let Some(p) = self.flattened_paths.get(index) {
+            p.clone()
+        } else {
+            self.loaded_key = None;
+            return Ok(());
+        };
+
+        if let Some((_, is_key, _, _)) = self.flattened_items.get(index) {
+            if *is_key {
+                self.fetch_details_for_key(&path)?;
+            }
+        }
         Ok(())
     }
 
