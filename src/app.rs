@@ -3,20 +3,12 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::DefaultTerminal;
 use ratatui::widgets::{ListState, Row};
 
-use super::redis::RedisClient;
 use super::redis::commands::*;
+use super::redis::{RedisClient, RedisOps};
+use super::tree::Tree;
 use super::ui;
 
 use std::collections::BTreeMap;
-
-#[derive(Clone, Debug, Default)]
-pub struct TreeNode {
-    pub name: String,
-    pub full_path: String,
-    pub children: BTreeMap<String, TreeNode>,
-    pub is_expanded: bool,
-    pub is_key: bool,
-}
 
 #[derive(Clone, Debug)]
 pub enum CollectionData {
@@ -37,9 +29,9 @@ pub struct LoadedKeyData {
     pub content: CollectionData,
 }
 
-pub struct App {
+pub struct App<R: RedisOps> {
     exit: bool,
-    pub redis_client: RedisClient,
+    pub redis_client: R,
     pub keys: Vec<String>,
     pub next: String,
     pub list_state: ListState,
@@ -51,17 +43,15 @@ pub struct App {
     pub collection_page_size: usize,
     pub collection_cursors: Vec<String>,
     // Tree view
-    pub tree_root: TreeNode,
-    pub flattened_items: Vec<(String, bool, usize, bool)>, // (name, is_key, depth, is_expanded)
-    pub flattened_paths: Vec<String>,                      // parallel to items, stores full path
+    pub tree: Tree,
     // Search & Filtering
     pub filter_pattern: String,
     pub search_query: String,
     pub is_searching: bool,
 }
 
-impl App {
-    pub fn new(redis_client: RedisClient) -> Result<Self> {
+impl<R: RedisOps> App<R> {
+    pub fn new(redis_client: R) -> Result<Self> {
         let (next, keys) = redis_client.scan("0", "*", 100)?;
         let message = None;
 
@@ -76,9 +66,7 @@ impl App {
             collection_page: 0,
             collection_page_size: 50,
             collection_cursors: vec!["0".to_string()],
-            tree_root: TreeNode::default(),
-            flattened_items: vec![],
-            flattened_paths: vec![],
+            tree: Tree::new(),
             filter_pattern: "*".to_string(),
             search_query: String::new(),
             is_searching: false,
@@ -89,65 +77,13 @@ impl App {
     }
 
     pub fn rebuild_tree(&mut self) {
-        self.tree_root = TreeNode::default();
+        let mut types = BTreeMap::new();
         for key in &self.keys {
-            let parts: Vec<&str> = key.split(':').collect();
-            let mut current = &mut self.tree_root;
-            let mut path_acc = String::new();
-
-            for (i, part) in parts.iter().enumerate() {
-                if !path_acc.is_empty() {
-                    path_acc.push(':');
-                }
-                path_acc.push_str(part);
-
-                let is_last = i == parts.len() - 1;
-
-                if !current.children.contains_key(*part) {
-                    let node = TreeNode {
-                        name: part.to_string(),
-                        full_path: path_acc.clone(),
-                        children: BTreeMap::new(),
-                        is_expanded: false, // Default collapsed
-                        is_key: false,
-                    };
-                    current.children.insert(part.to_string(), node);
-                }
-
-                current = current.children.get_mut(*part).unwrap();
-                if is_last {
-                    current.is_key = true;
-                }
+            if let Ok(t) = self.redis_client.key_type(key) {
+                types.insert(key.clone(), t);
             }
         }
-        self.flatten_tree();
-    }
-
-    pub fn flatten_tree(&mut self) {
-        let mut items = vec![];
-        let mut paths = vec![];
-
-        Self::flatten_recursive(&self.tree_root, 0, &mut items, &mut paths);
-
-        self.flattened_items = items;
-        self.flattened_paths = paths;
-    }
-
-    fn flatten_recursive(
-        node: &TreeNode,
-        depth: usize,
-        items: &mut Vec<(String, bool, usize, bool)>,
-        paths: &mut Vec<String>,
-    ) {
-        for child in node.children.values() {
-            // (Name, IsKey, Depth, IsExpanded)
-            items.push((child.name.clone(), child.is_key, depth, child.is_expanded));
-            paths.push(child.full_path.clone());
-
-            if child.is_expanded {
-                Self::flatten_recursive(child, depth + 1, items, paths);
-            }
-        }
+        self.tree.rebuild(&self.keys, &types);
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
@@ -274,11 +210,11 @@ impl App {
             return Ok(());
         };
 
-        if let Some((_, is_key, _, _)) = self.flattened_items.get(index) {
+        if let Some((_, is_key, _, _, _)) = self.tree.flattened_items.get(index) {
             if *is_key {
                 // Fetch details
                 // We need the full path
-                if let Some(path) = self.flattened_paths.get(index).cloned() {
+                if let Some(path) = self.tree.flattened_paths.get(index).cloned() {
                     // We need to set up 'loaded_key' based on this path
                     self.fetch_details_for_key(&path)?;
                 }
@@ -291,56 +227,27 @@ impl App {
 
     fn toggle_expanded(&mut self) {
         if let Some(index) = self.list_state.selected() {
-            if let Some(path) = self.flattened_paths.get(index).cloned() {
+            if let Some(path) = self.tree.flattened_paths.get(index).cloned() {
                 // Find node and toggle
-                self.toggle_node_expansion(&path);
-                self.flatten_tree();
+                self.tree.toggle_expansion(&path);
             }
         }
     }
 
     fn expand_current(&mut self) {
         if let Some(index) = self.list_state.selected() {
-            if let Some(path) = self.flattened_paths.get(index).cloned() {
-                self.set_node_expansion(&path, true);
-                self.flatten_tree();
+            if let Some(path) = self.tree.flattened_paths.get(index).cloned() {
+                self.tree.set_expansion(&path, true);
             }
         }
     }
 
     fn collapse_current(&mut self) {
         if let Some(index) = self.list_state.selected() {
-            if let Some(path) = self.flattened_paths.get(index).cloned() {
-                self.set_node_expansion(&path, false);
-                self.flatten_tree();
+            if let Some(path) = self.tree.flattened_paths.get(index).cloned() {
+                self.tree.set_expansion(&path, false);
             }
         }
-    }
-
-    fn toggle_node_expansion(&mut self, path: &str) {
-        let parts: Vec<&str> = path.split(':').collect();
-        let mut current = &mut self.tree_root;
-        for part in parts {
-            if let Some(node) = current.children.get_mut(part) {
-                current = node;
-            } else {
-                return;
-            }
-        }
-        current.is_expanded = !current.is_expanded;
-    }
-
-    fn set_node_expansion(&mut self, path: &str, expanded: bool) {
-        let parts: Vec<&str> = path.split(':').collect();
-        let mut current = &mut self.tree_root;
-        for part in parts {
-            if let Some(node) = current.children.get_mut(part) {
-                current = node;
-            } else {
-                return;
-            }
-        }
-        current.is_expanded = expanded;
     }
 
     pub fn fetch_details_for_key(&mut self, key: &str) -> Result<()> {
@@ -433,8 +340,8 @@ impl App {
 
     fn delete_selected_key(&mut self) -> Result<()> {
         if let Some(index) = self.list_state.selected() {
-            if let Some(path) = self.flattened_paths.get(index).cloned() {
-                let (_, is_key, _, _) = self.flattened_items[index];
+            if let Some(path) = self.tree.flattened_paths.get(index).cloned() {
+                let (_, is_key, _, _, _) = self.tree.flattened_items[index];
                 if is_key {
                     self.redis_client.del(&path)?;
                     self.message = Some(format!("Deleted key: {}", path));
@@ -448,7 +355,7 @@ impl App {
 
                     // Reset selection?? Or try to keep index?
                     // If index exists in new tree, fine.
-                    if index >= self.flattened_items.len() {
+                    if index >= self.tree.flattened_items.len() {
                         self.list_state.select(None);
                     }
                     self.loaded_key = None;
@@ -483,14 +390,14 @@ impl App {
             return Ok(());
         };
 
-        let path = if let Some(p) = self.flattened_paths.get(index) {
+        let path = if let Some(p) = self.tree.flattened_paths.get(index) {
             p.clone()
         } else {
             self.loaded_key = None;
             return Ok(());
         };
 
-        if let Some((_, is_key, _, _)) = self.flattened_items.get(index) {
+        if let Some((_, is_key, _, _, _)) = self.tree.flattened_items.get(index) {
             if *is_key {
                 self.fetch_details_for_key(&path)?;
             }
@@ -567,7 +474,7 @@ impl App {
             Some(msg) => msg.clone(),
             None => format!(
                 "{} | q: Quit | ↑↓: Navigate | d: Delete | n: Next Keys | ←→: Page Collection",
-                self.redis_client.url
+                self.redis_client.url()
             ),
         }
     }

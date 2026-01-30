@@ -4,12 +4,13 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Table, Widget};
 
 use crate::app::App;
+use crate::redis::RedisOps;
 
 mod details;
 mod help;
 mod left_menu;
 
-pub fn draw(frame: &mut Frame, app: &mut App) {
+pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>) {
     // Overall layout: main area and help area
     let layout = Layout::default()
         .direction(Direction::Vertical)
