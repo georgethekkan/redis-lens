@@ -9,6 +9,7 @@
 - **🌳 Interactive Key Tree**: Navigate your Redis database using a smart folder-based tree view. Automatically groups keys using common delimiters.
 - **🔍 Powerful Search & Filter**: Instant key filtering with support for Redis glob patterns.
 - **📝 In-place Value Editing**: Modify Strings, Hashes, Lists, Sets, and Sorted Sets directly within the TUI.
+- **✨ Data Insertion**: Create new keys (`i`) or add items to existing collections (`a`) with intuitive multi-step dialogs.
 - **📊 Live Server Metrics**: Real-time monitoring of **Memory Usage**, **CPU Load**, and **Key Counts** in a premium header dashboard.
 - **🎯 Dual-Pane Navigation**: Seamlessly switch focus between your key hierarchy and data details with intuitive visual cues.
 - **🎨 Color-Coded Types**: Distinctive visual styles for every Redis data type (Strings, Hashes, Lists, etc.) for instant recognition.
@@ -23,6 +24,8 @@
 | `Tab` | Switch focus between Tree and Details |
 | `←` / `→` | Collapse/Expand Folders or Page through Collections |
 | `r` | **Refresh** stats, keys, and current data |
+| `i` | **Insert** new key (Step-by-step) |
+| `a` | **Add** item to current collection |
 | `e` | **Edit** current value (Strings/Hashes/Lists/Sets) |
 | `d` | **Delete** selected key or collection item |
 | `/` | Open **Search** pattern popup |

@@ -65,6 +65,42 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>) {
         frame.render_widget(ratatui::widgets::Clear, area); // Clear background
         frame.render_widget(p, area);
     }
+
+    if app.is_inserting {
+        let area = centered_rect(60, 25, frame.area());
+        let (title, content, hint) = match app.insert_step {
+            0 => (
+                " 1/3: Key Name ",
+                app.insert_name.as_str(),
+                "Enter the key name",
+            ),
+            1 => (
+                " 2/3: Key Type ",
+                app.insert_type.as_str(),
+                "(s:string, h:hash, l:list, e:set, z:zset)",
+            ),
+            2 => (
+                " 3/3: Value Data ",
+                app.insert_value.as_str(),
+                "Enter value (H: f:v, Z: s:m)",
+            ),
+            _ => ("", "", ""),
+        };
+
+        let block = Block::default()
+            .title(title)
+            .title_style(THEME.block_title)
+            .borders(Borders::ALL)
+            .border_style(THEME.search_popup);
+
+        // Show hint in the footer or similar? Let's just use Paragraph with multiple lines or title_bottom
+        let p = Paragraph::new(format!("{}\n\nHint: {}", content, hint))
+            .block(block)
+            .style(THEME.search_input);
+
+        frame.render_widget(ratatui::widgets::Clear, area);
+        frame.render_widget(p, area);
+    }
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

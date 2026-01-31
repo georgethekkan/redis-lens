@@ -67,6 +67,12 @@ pub struct App<R: RedisOps> {
     pub is_editing: bool,
     pub edit_buffer: String,
     pub original_value: String,
+    // Insertion
+    pub is_inserting: bool,
+    pub insert_name: String,
+    pub insert_value: String,
+    pub insert_type: String, // "string", "hash", "list", "set", "zset"
+    pub insert_step: usize,  // 0: Name, 1: Type, 2: Value/Field
 }
 
 impl<R: RedisOps> App<R> {
@@ -97,6 +103,11 @@ impl<R: RedisOps> App<R> {
             is_editing: false,
             edit_buffer: String::new(),
             original_value: String::new(),
+            is_inserting: false,
+            insert_name: String::new(),
+            insert_value: String::new(),
+            insert_type: "string".to_string(),
+            insert_step: 0,
         };
 
         app.update_stats()?;
@@ -210,6 +221,11 @@ impl<R: RedisOps> App<R> {
             return Ok(());
         }
 
+        if self.is_inserting {
+            self.handle_insertion_key_event(key)?;
+            return Ok(());
+        }
+
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.exit = true,
             KeyCode::Char('/') => {
@@ -217,6 +233,25 @@ impl<R: RedisOps> App<R> {
                 self.search_query.clear();
             }
             KeyCode::Char('e') => self.start_editing(),
+            KeyCode::Char('i') => {
+                self.is_inserting = true;
+                self.insert_step = 0;
+                self.insert_name.clear();
+                self.insert_value.clear();
+                self.insert_type = "string".to_string();
+            }
+            KeyCode::Char('a') => {
+                if self.focus == Focus::Details && self.loaded_key.is_some() {
+                    let key_type = self.loaded_key.as_ref().unwrap().key_type.clone();
+                    if key_type != "string" {
+                        self.is_inserting = true;
+                        self.insert_step = 2; // Skip name/type, go straight to value
+                        self.insert_name = self.loaded_key.as_ref().unwrap().key.clone();
+                        self.insert_type = key_type;
+                        self.insert_value.clear();
+                    }
+                }
+            }
             KeyCode::Char('r') => self.refresh()?,
             KeyCode::Tab => {
                 self.focus = match self.focus {
@@ -402,6 +437,94 @@ impl<R: RedisOps> App<R> {
             self.details_table_state.select(Some(new_len - 1));
         }
 
+        Ok(())
+    }
+
+    fn handle_insertion_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        match key.code {
+            KeyCode::Enter => {
+                if self.insert_step < 2 {
+                    self.insert_step += 1;
+                } else {
+                    self.perform_insertion()?;
+                    self.is_inserting = false;
+                }
+            }
+            KeyCode::Esc => {
+                self.is_inserting = false;
+            }
+            KeyCode::Char(c) => match self.insert_step {
+                0 => self.insert_name.push(c),
+                1 => {
+                    // Type selection - keep it simple: s: string, h: hash, l: list, e: set, z: zset
+                    match c {
+                        's' => self.insert_type = "string".to_string(),
+                        'h' => self.insert_type = "hash".to_string(),
+                        'l' => self.insert_type = "list".to_string(),
+                        'e' => self.insert_type = "set".to_string(),
+                        'z' => self.insert_type = "zset".to_string(),
+                        _ => {}
+                    }
+                }
+                2 => self.insert_value.push(c),
+                _ => {}
+            },
+            KeyCode::Backspace => match self.insert_step {
+                0 => {
+                    self.insert_name.pop();
+                }
+                2 => {
+                    self.insert_value.pop();
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn perform_insertion(&mut self) -> Result<()> {
+        let key = self.insert_name.clone();
+        let value = self.insert_value.clone();
+
+        match self.insert_type.as_str() {
+            "string" => {
+                self.redis_client.set(&key, &value)?;
+            }
+            "hash" => {
+                // Expect "field:value"
+                if let Some((field, val)) = value.split_once(':') {
+                    self.redis_client.hset(&key, field, val)?;
+                } else {
+                    self.message = Some("Format for Hash: field:value".to_string());
+                    return Ok(());
+                }
+            }
+            "list" => {
+                self.redis_client.rpush(&key, &value)?;
+            }
+            "set" => {
+                self.redis_client.sadd(&key, &value)?;
+            }
+            "zset" => {
+                // Expect "score:member"
+                if let Some((score_str, member)) = value.split_once(':') {
+                    if let Ok(score) = score_str.parse::<f64>() {
+                        self.redis_client.zadd(&key, score, member)?;
+                    } else {
+                        self.message = Some("Format for ZSet: score:member".to_string());
+                        return Ok(());
+                    }
+                } else {
+                    self.message = Some("Format for ZSet: score:member".to_string());
+                    return Ok(());
+                }
+            }
+            _ => {}
+        }
+
+        self.message = Some(format!("Inserted into {}", key));
+        self.refresh()?;
         Ok(())
     }
 
