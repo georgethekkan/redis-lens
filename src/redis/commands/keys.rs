@@ -14,7 +14,7 @@ pub trait KeyCommands {
 impl KeyCommands for RedisClient {
     fn scan(&self, cursor: &str, pattern: &str, count: usize) -> Result<(String, Vec<String>)> {
         let mut con = self.get_connection()?;
-        let (next_cursor, keys): (String, Vec<String>) = redis::cmd("SCAN")
+        let (next, keys): (String, Vec<String>) = redis::cmd("SCAN")
             .arg(cursor)
             .arg("MATCH")
             .arg(pattern)
@@ -22,7 +22,7 @@ impl KeyCommands for RedisClient {
             .arg(count.to_string())
             .query(&mut con)
             .context("Failed to scan keys from Redis")?;
-        Ok((next_cursor, keys))
+        Ok((next, keys))
     }
 
     fn del(&self, key: &str) -> Result<()> {

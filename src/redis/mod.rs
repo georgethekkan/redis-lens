@@ -1,8 +1,9 @@
 use color_eyre::eyre::{Context, Result};
 use r2d2::{Pool, PooledConnection};
 use redis::{Client, Connection};
+use tracing::info;
 
-use crate::args;
+use crate::args::{self, RedisConfig};
 
 pub mod commands;
 
@@ -53,9 +54,8 @@ impl RedisOps for RedisClient {
 
 impl RedisClient {
     #[tracing::instrument(skip(cfg))]
-    pub fn new(cfg: &args::RedisConfig) -> Result<RedisClient> {
-        tracing::info!("Connecting to Redis at {} using DB {}", cfg.url, cfg.db);
-        println!("Connecting to Redis at {} using DB {}", cfg.url, cfg.db);
+    pub fn new(cfg: &RedisConfig) -> Result<RedisClient> {
+        info!("Connecting to Redis at {} using DB {}", cfg.url, cfg.db);
 
         let url = build_redis_url(cfg);
 
@@ -65,20 +65,18 @@ impl RedisClient {
 
         let pool = r2d2::Pool::builder().build(manager)?;
 
-        tracing::info!("Connected to Redis successfully");
+        info!("Connected to Redis successfully");
         Ok(RedisClient { url, pool })
     }
 
     pub fn get_connection(&self) -> Result<PooledConnection<RedisConnectionManager>> {
-        let conn = self
-            .pool
+        self.pool
             .get_timeout(std::time::Duration::from_secs(5))
-            .context("Failed to get Redis connection")?;
-        Ok(conn)
+            .context("Failed to get Redis connection")
     }
 }
 
-fn build_redis_url(cfg: &args::RedisConfig) -> String {
+fn build_redis_url(cfg: &RedisConfig) -> String {
     if let Some(username) = &cfg.username {
         if let Some(password) = &cfg.password {
             format!("redis://{}:{}@{}/{}", username, password, cfg.url, cfg.db)
