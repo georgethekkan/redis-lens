@@ -13,6 +13,7 @@ pub trait HashCommands {
         count: usize,
     ) -> Result<(String, Vec<(String, String)>)>;
     fn hset(&self, key: &str, field: &str, value: &str) -> Result<()>;
+    fn hdel(&self, key: &str, field: &str) -> Result<()>;
 }
 
 impl HashCommands for RedisClient {
@@ -51,6 +52,12 @@ impl HashCommands for RedisClient {
     fn hset(&self, key: &str, field: &str, value: &str) -> Result<()> {
         let mut con = self.get_connection()?;
         let _: () = con.hset(key, field, value).context("Failed to hset")?;
+        Ok(())
+    }
+
+    fn hdel(&self, key: &str, field: &str) -> Result<()> {
+        let mut con = self.get_connection()?;
+        let _: () = con.hdel(key, field).context("Failed to hdel")?;
         Ok(())
     }
 }

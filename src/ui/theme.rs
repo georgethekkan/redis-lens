@@ -4,6 +4,7 @@ pub struct Theme {
     pub base: Style,
     pub block_title: Style,
     pub block_border: Style,
+    pub block_border_focused: Style,
     pub header_title: Style,
     pub header_info: Style,
 
@@ -38,6 +39,7 @@ pub const THEME: Theme = Theme {
     base: Style::new().fg(Color::White),
     block_title: Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
     block_border: Style::new().fg(Color::Indexed(240)), // Dark gray
+    block_border_focused: Style::new().fg(Color::Cyan),
     header_title: Style::new()
         .fg(Color::Black)
         .bg(Color::Cyan)

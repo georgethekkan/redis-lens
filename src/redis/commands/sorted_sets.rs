@@ -8,6 +8,7 @@ pub trait SortedSetCommands {
     fn zrange_with_scores(&self, key: &str, start: i64, stop: i64) -> Result<Vec<(String, f64)>>;
     fn zscan(&self, key: &str, cursor: &str, count: usize) -> Result<(String, Vec<(String, f64)>)>;
     fn zadd(&self, key: &str, score: f64, member: &str) -> Result<()>;
+    fn zrem(&self, key: &str, member: &str) -> Result<()>;
 }
 
 impl SortedSetCommands for RedisClient {
@@ -46,6 +47,12 @@ impl SortedSetCommands for RedisClient {
     fn zadd(&self, key: &str, score: f64, member: &str) -> Result<()> {
         let mut con = self.get_connection()?;
         let _: () = con.zadd(key, member, score).context("Failed to zadd")?;
+        Ok(())
+    }
+
+    fn zrem(&self, key: &str, member: &str) -> Result<()> {
+        let mut con = self.get_connection()?;
+        let _: () = con.zrem(key, member).context("Failed to zrem")?;
         Ok(())
     }
 }

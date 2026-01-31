@@ -42,13 +42,19 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, left: Rect) {
         })
         .collect();
 
+    let border_style = if app.focus == crate::app::Focus::LeftMenu {
+        THEME.block_border_focused
+    } else {
+        THEME.block_border
+    };
+
     let list = List::new(list_items)
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title(" Keys ")
                 .title_style(THEME.block_title)
-                .border_style(THEME.block_border),
+                .border_style(border_style),
         )
         .highlight_style(THEME.key_highlight)
         .highlight_symbol(">> ");

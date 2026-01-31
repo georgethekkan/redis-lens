@@ -10,6 +10,12 @@ use super::ui;
 
 use std::collections::BTreeMap;
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Focus {
+    LeftMenu,
+    Details,
+}
+
 #[derive(Clone, Debug)]
 pub enum CollectionData {
     String(String, usize), // Value, length (bytes)
@@ -49,6 +55,9 @@ pub struct App<R: RedisOps> {
     pub search_query: String,
     pub is_searching: bool,
     pub total_keys: u64,
+    // Navigation
+    pub focus: Focus,
+    pub details_table_state: ratatui::widgets::TableState,
 }
 
 impl<R: RedisOps> App<R> {
@@ -73,6 +82,8 @@ impl<R: RedisOps> App<R> {
             search_query: String::new(),
             is_searching: false,
             total_keys,
+            focus: Focus::LeftMenu,
+            details_table_state: ratatui::widgets::TableState::default(),
         };
 
         app.rebuild_tree();
@@ -136,6 +147,33 @@ impl<R: RedisOps> App<R> {
                 self.is_searching = true;
                 self.search_query.clear();
             }
+            KeyCode::Tab => {
+                self.focus = match self.focus {
+                    Focus::LeftMenu => {
+                        // Only switch to details if a key is loaded
+                        if self.loaded_key.is_some() {
+                            Focus::Details
+                        } else {
+                            Focus::LeftMenu
+                        }
+                    }
+                    Focus::Details => Focus::LeftMenu,
+                };
+                // Initialize details table state if moving focus to Details
+                if self.focus == Focus::Details && self.details_table_state.selected().is_none() {
+                    self.details_table_state.select(Some(0));
+                }
+            }
+            _ => match self.focus {
+                Focus::LeftMenu => self.handle_left_menu_key_event(key)?,
+                Focus::Details => self.handle_details_key_event(key)?,
+            },
+        }
+        Ok(())
+    }
+
+    fn handle_left_menu_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        match key.code {
             KeyCode::Down => {
                 self.list_state.select_next();
                 self.handle_selection_change()?;
@@ -152,8 +190,26 @@ impl<R: RedisOps> App<R> {
             KeyCode::Char('n') => self.load_next_page()?,
 
             KeyCode::Right => {
-                // If folder and collapsed, expand.
-                self.expand_current();
+                if let Some(index) = self.list_state.selected() {
+                    if let Some((_, is_key, _, is_expanded, _)) =
+                        self.tree.flattened_items.get(index)
+                    {
+                        if *is_key {
+                            // If it's a key, move focus to Details (only if loaded)
+                            if self.loaded_key.is_some() {
+                                self.focus = Focus::Details;
+                                if self.details_table_state.selected().is_none() {
+                                    self.details_table_state.select(Some(0));
+                                }
+                            }
+                        } else {
+                            // If it's a folder, just expand and stay focused here
+                            if !*is_expanded {
+                                self.expand_current();
+                            }
+                        }
+                    }
+                }
             }
             KeyCode::Left => {
                 // If folder and expanded, collapse.
@@ -175,6 +231,106 @@ impl<R: RedisOps> App<R> {
                 }
             }
         }
+        Ok(())
+    }
+
+    fn handle_details_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        match key.code {
+            KeyCode::Down => {
+                let i = match self.details_table_state.selected() {
+                    Some(i) => {
+                        let len = self.get_loaded_collection_length();
+                        if i >= len.saturating_sub(1) { 0 } else { i + 1 }
+                    }
+                    None => 0,
+                };
+                self.details_table_state.select(Some(i));
+            }
+            KeyCode::Up => {
+                let i = match self.details_table_state.selected() {
+                    Some(i) => {
+                        let len = self.get_loaded_collection_length();
+                        if i == 0 { len.saturating_sub(1) } else { i - 1 }
+                    }
+                    None => 0,
+                };
+                self.details_table_state.select(Some(i));
+            }
+            KeyCode::Left | KeyCode::BackTab => {
+                self.focus = Focus::LeftMenu;
+            }
+            KeyCode::Char('d') => self.delete_collection_item()?,
+            KeyCode::Char('l') => {
+                self.next_collection_page();
+                self.fetch_selected_key_details()?;
+            }
+            KeyCode::Char('h') => {
+                self.prev_collection_page();
+                self.fetch_selected_key_details()?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn get_loaded_collection_length(&self) -> usize {
+        if let Some(data) = &self.loaded_key {
+            match &data.content {
+                CollectionData::List(items) => items.len(),
+                CollectionData::Hash(fields) => fields.len(),
+                CollectionData::Set(members) => members.len(),
+                CollectionData::ZSet(items) => items.len(),
+                _ => 0,
+            }
+        } else {
+            0
+        }
+    }
+
+    fn delete_collection_item(&mut self) -> Result<()> {
+        let Some(index) = self.details_table_state.selected() else {
+            return Ok(());
+        };
+        let Some(data) = self.loaded_key.clone() else {
+            return Ok(());
+        };
+
+        let key = &data.key;
+        match &data.content {
+            CollectionData::Hash(fields) => {
+                if let Some((field, _)) = fields.get(index) {
+                    self.redis_client.hdel(key, field)?;
+                }
+            }
+            CollectionData::List(items) => {
+                if let Some(value) = items.get(index) {
+                    self.redis_client.lrem(key, 1, value)?;
+                }
+            }
+            CollectionData::Set(members) => {
+                if let Some(member) = members.get(index) {
+                    self.redis_client.srem(key, member)?;
+                }
+            }
+            CollectionData::ZSet(items) => {
+                if let Some((member, _)) = items.get(index) {
+                    self.redis_client.zrem(key, member)?;
+                }
+            }
+            _ => return Ok(()),
+        }
+
+        // Reload data
+        self.fetch_details_for_key(&key.clone())?;
+
+        // Adjust selection
+        let new_len = self.get_loaded_collection_length();
+        if new_len == 0 {
+            self.details_table_state.select(None);
+        } else if index >= new_len {
+            self.details_table_state.select(Some(new_len - 1));
+        }
+
         Ok(())
     }
 

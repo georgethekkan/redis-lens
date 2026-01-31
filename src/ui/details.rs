@@ -25,13 +25,13 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(7), // Metadata height
+            Constraint::Length(5), // Metadata height
             Constraint::Min(0),    // Content height
         ])
         .split(area);
 
     draw_metadata(frame, data, chunks[0]);
-    draw_content(frame, app, data, chunks[1]);
+    draw_content(frame, app, chunks[1]);
 }
 
 fn draw_metadata(frame: &mut Frame, data: &LoadedKeyData, area: Rect) {
@@ -79,7 +79,10 @@ fn draw_metadata(frame: &mut Frame, data: &LoadedKeyData, area: Rect) {
     );
 }
 
-fn draw_content<R: RedisOps>(frame: &mut Frame, app: &App<R>, data: &LoadedKeyData, area: Rect) {
+fn draw_content<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
+    let Some(data) = &app.loaded_key else {
+        return;
+    };
     let type_color = match data.key_type.as_str() {
         "string" => THEME.type_string,
         "list" => THEME.type_list,
@@ -89,11 +92,17 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &App<R>, data: &LoadedKeyDa
         _ => Color::White,
     };
 
+    let border_style = if app.focus == crate::app::Focus::Details {
+        THEME.block_border_focused
+    } else {
+        THEME.block_border
+    };
+
     let block = Block::default()
         .title(" Content ")
         .title_style(THEME.block_title)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(type_color));
+        .border_style(border_style);
 
     let inner_area = block.inner(area);
     frame.render_widget(block, area);
@@ -120,8 +129,9 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &App<R>, data: &LoadedKeyDa
 
             let table = Table::new(rows, [Constraint::Length(6), Constraint::Min(0)])
                 .header(Row::new(vec!["Index", "Value"]).style(THEME.table_header))
+                .row_highlight_style(THEME.key_highlight)
                 .column_spacing(1);
-            frame.render_widget(table, inner_area);
+            frame.render_stateful_widget(table, inner_area, &mut app.details_table_state);
         }
         CollectionData::Hash(fields) => {
             let rows: Vec<Row> = fields
@@ -139,8 +149,9 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &App<R>, data: &LoadedKeyDa
                 [Constraint::Percentage(30), Constraint::Percentage(70)],
             )
             .header(Row::new(vec!["Field", "Value"]).style(THEME.table_header))
+            .row_highlight_style(THEME.key_highlight)
             .column_spacing(1);
-            frame.render_widget(table, inner_area);
+            frame.render_stateful_widget(table, inner_area, &mut app.details_table_state);
         }
         CollectionData::Set(members) => {
             let rows: Vec<Row> = members
@@ -150,8 +161,9 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &App<R>, data: &LoadedKeyDa
 
             let table = Table::new(rows, [Constraint::Min(0)])
                 .header(Row::new(vec!["Member"]).style(THEME.table_header))
+                .row_highlight_style(THEME.key_highlight)
                 .column_spacing(1);
-            frame.render_widget(table, inner_area);
+            frame.render_stateful_widget(table, inner_area, &mut app.details_table_state);
         }
         CollectionData::ZSet(items) => {
             let rows: Vec<Row> = items
@@ -166,8 +178,9 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &App<R>, data: &LoadedKeyDa
 
             let table = Table::new(rows, [Constraint::Length(15), Constraint::Min(0)])
                 .header(Row::new(vec!["Score", "Member"]).style(THEME.table_header))
+                .row_highlight_style(THEME.key_highlight)
                 .column_spacing(1);
-            frame.render_widget(table, inner_area);
+            frame.render_stateful_widget(table, inner_area, &mut app.details_table_state);
         }
         CollectionData::None => {
             frame.render_widget(Paragraph::new("No content loaded").italic(), inner_area);
