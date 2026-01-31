@@ -63,6 +63,10 @@ pub struct App<R: RedisOps> {
     pub used_cpu: String,
     // Caches
     pub key_types: BTreeMap<String, String>,
+    // Editing
+    pub is_editing: bool,
+    pub edit_buffer: String,
+    pub original_value: String,
 }
 
 impl<R: RedisOps> App<R> {
@@ -90,6 +94,9 @@ impl<R: RedisOps> App<R> {
             used_memory: "N/A".to_string(),
             used_cpu: "N/A".to_string(),
             key_types: BTreeMap::new(),
+            is_editing: false,
+            edit_buffer: String::new(),
+            original_value: String::new(),
         };
 
         app.update_stats()?;
@@ -183,12 +190,33 @@ impl<R: RedisOps> App<R> {
             return Ok(());
         }
 
+        if self.is_editing {
+            match key.code {
+                KeyCode::Enter => {
+                    self.save_edit()?;
+                }
+                KeyCode::Esc => {
+                    self.is_editing = false;
+                    self.edit_buffer.clear();
+                }
+                KeyCode::Char(c) => {
+                    self.edit_buffer.push(c);
+                }
+                KeyCode::Backspace => {
+                    self.edit_buffer.pop();
+                }
+                _ => {}
+            }
+            return Ok(());
+        }
+
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.exit = true,
             KeyCode::Char('/') => {
                 self.is_searching = true;
                 self.search_query.clear();
             }
+            KeyCode::Char('e') => self.start_editing(),
             KeyCode::Char('r') => self.refresh()?,
             KeyCode::Tab => {
                 self.focus = match self.focus {
@@ -374,6 +402,110 @@ impl<R: RedisOps> App<R> {
             self.details_table_state.select(Some(new_len - 1));
         }
 
+        Ok(())
+    }
+
+    fn start_editing(&mut self) {
+        if let Some(loaded) = &self.loaded_key {
+            match &loaded.content {
+                CollectionData::String(val, _) => {
+                    self.is_editing = true;
+                    self.edit_buffer = val.clone();
+                    self.original_value = val.clone();
+                }
+                CollectionData::Hash(fields) => {
+                    if let Some(index) = self.details_table_state.selected() {
+                        if let Some((_, val)) = fields.get(index) {
+                            self.is_editing = true;
+                            self.edit_buffer = val.clone();
+                            self.original_value = val.clone();
+                        }
+                    }
+                }
+                CollectionData::List(items) => {
+                    if let Some(index) = self.details_table_state.selected() {
+                        if let Some(val) = items.get(index) {
+                            self.is_editing = true;
+                            self.edit_buffer = val.clone();
+                            self.original_value = val.clone();
+                        }
+                    }
+                }
+                CollectionData::Set(members) => {
+                    if let Some(index) = self.details_table_state.selected() {
+                        if let Some(val) = members.get(index) {
+                            self.is_editing = true;
+                            self.edit_buffer = val.clone();
+                            self.original_value = val.clone();
+                        }
+                    }
+                }
+                CollectionData::ZSet(items) => {
+                    if let Some(index) = self.details_table_state.selected() {
+                        if let Some((val, _)) = items.get(index) {
+                            self.is_editing = true;
+                            self.edit_buffer = val.clone();
+                            self.original_value = val.clone();
+                        }
+                    }
+                }
+                _ => {
+                    self.message = Some("Editing not supported for this type yet".to_string());
+                }
+            }
+        }
+    }
+
+    fn save_edit(&mut self) -> Result<()> {
+        let Some(loaded) = self.loaded_key.clone() else {
+            self.is_editing = false;
+            return Ok(());
+        };
+
+        let key = &loaded.key;
+        let new_value = self.edit_buffer.clone();
+
+        match &loaded.content {
+            CollectionData::String(_, _) => {
+                self.redis_client.set(key, &new_value)?;
+                self.message = Some(format!("Updated string: {}", key));
+            }
+            CollectionData::Hash(fields) => {
+                if let Some(index) = self.details_table_state.selected() {
+                    if let Some((field, _)) = fields.get(index) {
+                        self.redis_client.hset(key, field, &new_value)?;
+                        self.message = Some(format!("Updated hash field: {}", field));
+                    }
+                }
+            }
+            CollectionData::List(_) => {
+                if let Some(index) = self.details_table_state.selected() {
+                    let list_index =
+                        (self.collection_page * self.collection_page_size + index) as i64;
+                    self.redis_client.lset(key, list_index, &new_value)?;
+                    self.message = Some(format!("Updated list item at index {}", list_index));
+                }
+            }
+            CollectionData::Set(_) => {
+                self.redis_client.srem(key, &self.original_value)?;
+                self.redis_client.sadd(key, &new_value)?;
+                self.message = Some("Updated set member".to_string());
+            }
+            CollectionData::ZSet(items) => {
+                if let Some(index) = self.details_table_state.selected() {
+                    if let Some((_, score)) = items.get(index) {
+                        self.redis_client.zrem(key, &self.original_value)?;
+                        self.redis_client.zadd(key, *score, &new_value)?;
+                        self.message = Some("Updated sorted set member".to_string());
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        self.is_editing = false;
+        self.edit_buffer.clear();
+        self.fetch_details_for_key(key)?;
         Ok(())
     }
 

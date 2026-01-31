@@ -51,6 +51,20 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>) {
         frame.render_widget(ratatui::widgets::Clear, area); // Clear background
         frame.render_widget(p, area);
     }
+
+    if app.is_editing {
+        let area = centered_rect(60, 20, frame.area());
+        let block = Block::default()
+            .title(" Edit Value ")
+            .title_style(THEME.block_title)
+            .borders(Borders::ALL)
+            .border_style(THEME.search_popup);
+        let p = Paragraph::new(app.edit_buffer.as_str())
+            .block(block)
+            .style(THEME.search_input);
+        frame.render_widget(ratatui::widgets::Clear, area); // Clear background
+        frame.render_widget(p, area);
+    }
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

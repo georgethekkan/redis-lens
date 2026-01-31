@@ -10,9 +10,9 @@
 - [ ] Stream support: View stream entries with timestamps
 
 ### 2. Search & Filtering
-- [ ] Search bar in TUI to filter keys by pattern
+- [x] Search bar in TUI to filter keys by pattern
 - [ ] Regex pattern matching support
-- [ ] Real-time search results
+- [ ] Real-time search results (search as you type)
 - [ ] Persist search filters across navigation
 
 ### 3. Value Editor
@@ -23,8 +23,8 @@
 
 ### 4. Database Management
 - [ ] Database selector to switch between databases (0-15)
-- [ ] Show total key count per database
-- [ ] Server info display (memory, connections, version)
+- [x] Show total key count per database
+- [x] Server info display (memory, CPU, version)
 - [ ] Key statistics view (keys per type, memory distribution)
 
 ## 🚀 Medium Priority Features
@@ -39,8 +39,8 @@
 
 ### 6. Navigation & UX Improvements
 - [x] Keyboard shortcuts help modal (h or ?)
-- [ ] Tab navigation between panes
-- [x] Better pagination UI with current/total pages
+- [x] Tab navigation between panes
+- [x] Better pagination UI
 - [ ] Sort keys by: name, TTL, type, memory usage
 - [x] Light/dark theme support (Theme infrastructure implemented)
 - [x] Color code keys by type
@@ -48,8 +48,8 @@
 ### 7. Performance Features
 - [ ] Async loading for large key scans
 - [ ] Connection status indicator
-- [ ] Auto-refresh option for watching changes
-- [ ] Show key size in bytes
+- [x] Manual & Auto-refresh options
+- [x] Show key size in bytes
 - [ ] Display operation timings
 
 ## 💾 Lower Priority Features
@@ -88,3 +88,4 @@
 - [x] Color code keys by type
 - [ ] Horizontal scrolling for long values
 - [x] Display selected key name in details panel
+- [x] Collection item deletion

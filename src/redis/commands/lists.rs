@@ -8,6 +8,7 @@ pub trait ListCommands {
     fn lrange(&self, key: &str, start: i64, stop: i64) -> Result<Vec<String>>;
     fn rpush(&self, key: &str, value: &str) -> Result<()>;
     fn lrem(&self, key: &str, count: i64, value: &str) -> Result<()>;
+    fn lset(&self, key: &str, index: i64, value: &str) -> Result<()>;
 }
 
 impl ListCommands for RedisClient {
@@ -36,6 +37,14 @@ impl ListCommands for RedisClient {
         let _: () = con
             .lrem(key, count as isize, value)
             .context("Failed to lrem")?;
+        Ok(())
+    }
+
+    fn lset(&self, key: &str, index: i64, value: &str) -> Result<()> {
+        let mut con = self.get_connection()?;
+        let _: () = con
+            .lset(key, index as isize, value)
+            .context("Failed to lset")?;
         Ok(())
     }
 }
