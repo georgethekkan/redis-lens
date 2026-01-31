@@ -9,6 +9,7 @@ use crate::redis::RedisOps;
 mod details;
 mod header;
 mod help;
+mod help_modal;
 mod left_menu;
 pub mod theme;
 
@@ -126,6 +127,11 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>) {
 
         frame.render_widget(ratatui::widgets::Clear, area);
         frame.render_widget(list, area);
+    }
+
+    if app.show_help {
+        let area = centered_rect(60, 70, frame.area());
+        help_modal::draw(frame, app, area);
     }
 }
 

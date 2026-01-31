@@ -78,6 +78,8 @@ pub struct App<R: RedisOps> {
     // Database selection
     pub is_selecting_db: bool,
     pub db_cursor: u8,
+    // Help
+    pub show_help: bool,
 }
 
 impl<R: RedisOps> App<R> {
@@ -117,6 +119,7 @@ impl<R: RedisOps> App<R> {
             insert_step: 0,
             is_selecting_db: false,
             db_cursor: 0,
+            show_help: false,
         };
 
         app.update_stats()?;
@@ -245,8 +248,14 @@ impl<R: RedisOps> App<R> {
             return Ok(());
         }
 
+        if self.show_help {
+            self.show_help = false;
+            return Ok(());
+        }
+
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.exit = true,
+            KeyCode::Char('?') | KeyCode::Char('h') => self.show_help = true,
             KeyCode::Char('/') => {
                 self.is_searching = true;
                 self.search_query.clear();
