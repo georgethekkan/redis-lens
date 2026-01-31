@@ -101,6 +101,32 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>) {
         frame.render_widget(ratatui::widgets::Clear, area);
         frame.render_widget(p, area);
     }
+
+    if app.is_selecting_db {
+        let area = centered_rect(40, 50, frame.area());
+        let block = Block::default()
+            .title(" Select Database ")
+            .title_style(THEME.block_title)
+            .borders(Borders::ALL)
+            .border_style(THEME.search_popup);
+
+        let mut items = Vec::new();
+        for i in 0..16 {
+            let style = if i == app.db_cursor {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            };
+            items.push(ListItem::new(format!(" Database {} ", i)).style(style));
+        }
+
+        let list = List::new(items).block(block);
+
+        frame.render_widget(ratatui::widgets::Clear, area);
+        frame.render_widget(list, area);
+    }
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

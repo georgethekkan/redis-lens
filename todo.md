@@ -15,14 +15,16 @@
 - [ ] Real-time search results (search as you type)
 - [ ] Persist search filters across navigation
 
-### 3. Value Editor
-- [ ] In-place editing for string values
+### 3. Value Editor & Data Insertion
+- [x] In-place editing (Strings, Hashes, Lists, Sets, ZSets)
+- [x] Key creation wizard (`i`)
+- [x] Contextual item addition (`a`)
+- [x] Save changes with confirmation popup
 - [ ] JSON pretty-printing for JSON values
-- [ ] Save changes with confirmation
 - [ ] Undo last edit
 
 ### 4. Database Management
-- [ ] Database selector to switch between databases (0-15)
+- [x] Database selector to switch between databases (0-15)
 - [x] Show total key count per database
 - [x] Server info display (memory, CPU, version)
 - [ ] Key statistics view (keys per type, memory distribution)
@@ -79,7 +81,7 @@
 - [ ] Extend mock client with realistic test data
 - [ ] Add debug logging mode
 - [ ] Improve error context messages
-- [ ] Update README with usage examples
+- [x] Update README with usage examples, shortcuts, and credits
 
 ## ✅ Quick Wins (Easy to Implement First)
 - [x] Display key count

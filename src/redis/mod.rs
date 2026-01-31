@@ -40,16 +40,30 @@ pub trait RedisOps:
     + Sync
 {
     fn url(&self) -> String;
+    fn select_db(&mut self, db: u8) -> Result<()>;
 }
 
 pub struct RedisClient {
     pub url: String,
+    pub config: RedisConfig,
     pub pool: Pool<RedisConnectionManager>,
 }
 
 impl RedisOps for RedisClient {
     fn url(&self) -> String {
         self.url.clone()
+    }
+
+    fn select_db(&mut self, db: u8) -> Result<()> {
+        self.config.db = db;
+        let url = build_redis_url(&self.config);
+        let client = Client::open(url.clone()).context("Failed to connect to Redis")?;
+        let manager = RedisConnectionManager { client };
+        let pool = r2d2::Pool::builder().build(manager)?;
+
+        self.url = url;
+        self.pool = pool;
+        Ok(())
     }
 }
 
@@ -67,7 +81,11 @@ impl RedisClient {
         let pool = r2d2::Pool::builder().build(manager)?;
 
         info!("Connected to Redis successfully");
-        Ok(RedisClient { url, pool })
+        Ok(RedisClient {
+            url,
+            config: cfg.clone(),
+            pool,
+        })
     }
 
     pub fn get_connection(&self) -> Result<PooledConnection<RedisConnectionManager>> {

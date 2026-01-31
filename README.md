@@ -62,5 +62,14 @@ redis-lens --url redis://127.0.0.1:6379/0
 You can pass the connection URL via command-line arguments:
 - `--url <URL>`: Redis connection string (e.g., `redis://user:password@host:port/db`)
 
+## 🤝 Credits & Inspiration
+
+Inspired by **[RedisInsight](https://redis.io/insight/)**, aiming to bring a similar experience to the terminal.
+
+Developed with the assistance of:
+- **ChatGPT**: For architectural guidance and core logic.
+- **Antigravity**: For advanced agentic coding and feature implementation.
+- **[Ratatui](https://ratatui.rs/)**: The incredible library powering the TUI.
+
 ## 📄 License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

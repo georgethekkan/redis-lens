@@ -73,6 +73,9 @@ pub struct App<R: RedisOps> {
     pub insert_value: String,
     pub insert_type: String, // "string", "hash", "list", "set", "zset"
     pub insert_step: usize,  // 0: Name, 1: Type, 2: Value/Field
+    // Database selection
+    pub is_selecting_db: bool,
+    pub db_cursor: u8,
 }
 
 impl<R: RedisOps> App<R> {
@@ -108,6 +111,8 @@ impl<R: RedisOps> App<R> {
             insert_value: String::new(),
             insert_type: "string".to_string(),
             insert_step: 0,
+            is_selecting_db: false,
+            db_cursor: 0,
         };
 
         app.update_stats()?;
@@ -226,6 +231,11 @@ impl<R: RedisOps> App<R> {
             return Ok(());
         }
 
+        if self.is_selecting_db {
+            self.handle_db_selection_key_event(key)?;
+            return Ok(());
+        }
+
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.exit = true,
             KeyCode::Char('/') => {
@@ -253,6 +263,10 @@ impl<R: RedisOps> App<R> {
                 }
             }
             KeyCode::Char('r') => self.refresh()?,
+            KeyCode::Char('b') => {
+                self.is_selecting_db = true;
+                // self.db_cursor = ... we should probably store current_db in App or get it from client
+            }
             KeyCode::Tab => {
                 self.focus = match self.focus {
                     Focus::LeftMenu => {
@@ -935,6 +949,46 @@ impl<R: RedisOps> App<R> {
                 self.redis_client.url()
             ),
         }
+    }
+
+    fn handle_db_selection_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        match key.code {
+            KeyCode::Enter => {
+                self.confirm_db_selection()?;
+            }
+            KeyCode::Esc => {
+                self.is_selecting_db = false;
+            }
+            KeyCode::Up => {
+                self.db_cursor = self.db_cursor.saturating_sub(1);
+            }
+            KeyCode::Down => {
+                if self.db_cursor < 15 {
+                    self.db_cursor += 1;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn confirm_db_selection(&mut self) -> Result<()> {
+        let new_db = self.db_cursor;
+        self.redis_client.select_db(new_db)?;
+        self.is_selecting_db = false;
+
+        // Refresh everything
+        self.keys.clear();
+        self.key_types.clear();
+        self.loaded_key = None;
+        let (next, keys) = self.redis_client.scan("0", &self.filter_pattern, 100)?;
+        self.next = next;
+        self.keys = keys;
+        self.rebuild_tree();
+        self.update_stats()?;
+
+        self.message = Some(format!("Switched to Database {}", new_db));
+        Ok(())
     }
 }
 
