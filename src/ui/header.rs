@@ -18,10 +18,17 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
     frame.render_widget(title, layout[0]);
 
     // Info area (Total keys, etc.)
+    let raw_url = app.redis_client.url();
+    let clean_url = raw_url
+        .trim_start_matches("redis://")
+        .trim_start_matches("rediss://");
+
     let info_text = Line::from(vec![Span::styled(
         format!(
-            "  v0.1.0  |  {}  |  Keys: {}  |  Mem: {}  |  CPU: {}  ",
-            app.redis_client.url(),
+            " {} {}  |  {}  |  Keys: {}  |  Mem: {}  |  CPU: {} ",
+            app.server_name.to_uppercase(),
+            app.server_version,
+            clean_url,
             app.total_keys,
             app.used_memory,
             app.used_cpu

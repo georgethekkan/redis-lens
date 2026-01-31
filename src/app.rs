@@ -61,6 +61,8 @@ pub struct App<R: RedisOps> {
     // Redis Stats
     pub used_memory: String,
     pub used_cpu: String,
+    pub server_name: String,
+    pub server_version: String,
     // Caches
     pub key_types: BTreeMap<String, String>,
     // Editing
@@ -102,6 +104,8 @@ impl<R: RedisOps> App<R> {
             details_table_state: ratatui::widgets::TableState::default(),
             used_memory: "N/A".to_string(),
             used_cpu: "N/A".to_string(),
+            server_name: "Redis".to_string(),
+            server_version: "N/A".to_string(),
             key_types: BTreeMap::new(),
             is_editing: false,
             edit_buffer: String::new(),
@@ -128,6 +132,11 @@ impl<R: RedisOps> App<R> {
                     self.used_memory = line.split(':').nth(1).unwrap_or("N/A").to_string();
                 } else if line.starts_with("used_cpu_user:") {
                     self.used_cpu = line.split(':').nth(1).unwrap_or("N/A").to_string();
+                } else if line.starts_with("redis_version:") {
+                    self.server_version = line.split(':').nth(1).unwrap_or("N/A").to_string();
+                } else if line.starts_with("valkey_version:") {
+                    self.server_name = "Valkey".to_string();
+                    self.server_version = line.split(':').nth(1).unwrap_or("N/A").to_string();
                 }
             }
         }
@@ -295,11 +304,28 @@ impl<R: RedisOps> App<R> {
     fn handle_left_menu_key_event(&mut self, key: KeyEvent) -> Result<()> {
         match key.code {
             KeyCode::Down => {
-                self.list_state.select_next();
+                let i = match self.list_state.selected() {
+                    Some(i) => {
+                        let len = self.tree.flattened_items.len();
+                        if i >= len.saturating_sub(1) { i } else { i + 1 }
+                    }
+                    None => 0,
+                };
+                self.list_state.select(Some(i));
                 self.handle_selection_change()?;
             }
             KeyCode::Up => {
-                self.list_state.select_previous();
+                let i = match self.list_state.selected() {
+                    Some(i) => {
+                        if i == 0 {
+                            0
+                        } else {
+                            i - 1
+                        }
+                    }
+                    None => 0,
+                };
+                self.list_state.select(Some(i));
                 self.handle_selection_change()?;
             }
             KeyCode::Enter | KeyCode::Char(' ') => {
@@ -360,7 +386,7 @@ impl<R: RedisOps> App<R> {
                 let i = match self.details_table_state.selected() {
                     Some(i) => {
                         let len = self.get_loaded_collection_length();
-                        if i >= len.saturating_sub(1) { 0 } else { i + 1 }
+                        if i >= len.saturating_sub(1) { i } else { i + 1 }
                     }
                     None => 0,
                 };
@@ -369,8 +395,11 @@ impl<R: RedisOps> App<R> {
             KeyCode::Up => {
                 let i = match self.details_table_state.selected() {
                     Some(i) => {
-                        let len = self.get_loaded_collection_length();
-                        if i == 0 { len.saturating_sub(1) } else { i - 1 }
+                        if i == 0 {
+                            0
+                        } else {
+                            i - 1
+                        }
                     }
                     None => 0,
                 };
