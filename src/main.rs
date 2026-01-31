@@ -38,8 +38,10 @@ fn main() -> Result<()> {
 }
 
 fn setup_logging() -> WorkerGuard {
+    //create logs folder
+    std::fs::create_dir_all("./logs").unwrap();
     // Initialize logging
-    let file_appender = tracing_appender::rolling::daily(".", "redis-lens.log");
+    let file_appender = tracing_appender::rolling::daily("./logs", "redis-lens.log");
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
     tracing_subscriber::registry()

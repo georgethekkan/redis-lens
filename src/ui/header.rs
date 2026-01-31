@@ -19,7 +19,10 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
 
     // Info area (Total keys, etc.)
     let info_text = Line::from(vec![Span::styled(
-        format!("  v0.1.0  |  Total Keys: {}  ", app.total_keys),
+        format!(
+            "  v0.1.0  |  Keys: {}  |  Mem: {}  |  CPU: {}  ",
+            app.total_keys, app.used_memory, app.used_cpu
+        ),
         THEME.header_info,
     )]);
     let info = Paragraph::new(info_text);

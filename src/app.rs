@@ -58,11 +58,27 @@ pub struct App<R: RedisOps> {
     // Navigation
     pub focus: Focus,
     pub details_table_state: ratatui::widgets::TableState,
+    // Redis Stats
+    pub used_memory: String,
+    pub used_cpu: String,
 }
 
 impl<R: RedisOps> App<R> {
     pub fn new(redis_client: R) -> Result<Self> {
         let total_keys = redis_client.dbsize().unwrap_or(0);
+        let mut used_memory = "N/A".to_string();
+        let mut used_cpu = "N/A".to_string();
+
+        if let Ok(info) = redis_client.info() {
+            for line in info.lines() {
+                if line.starts_with("used_memory_human:") {
+                    used_memory = line.split(':').nth(1).unwrap_or("N/A").to_string();
+                } else if line.starts_with("used_cpu_user:") {
+                    used_cpu = line.split(':').nth(1).unwrap_or("N/A").to_string();
+                }
+            }
+        }
+
         let (next, keys) = redis_client.scan("0", "*", 100)?;
         let message = None;
 
@@ -84,6 +100,8 @@ impl<R: RedisOps> App<R> {
             total_keys,
             focus: Focus::LeftMenu,
             details_table_state: ratatui::widgets::TableState::default(),
+            used_memory,
+            used_cpu,
         };
 
         app.rebuild_tree();
@@ -98,6 +116,34 @@ impl<R: RedisOps> App<R> {
             }
         }
         self.tree.rebuild(&self.keys, &types);
+    }
+
+    pub fn refresh(&mut self) -> Result<()> {
+        // 1. Refresh server stats
+        self.total_keys = self.redis_client.dbsize().unwrap_or(0);
+        if let Ok(info) = self.redis_client.info() {
+            for line in info.lines() {
+                if line.starts_with("used_memory_human:") {
+                    self.used_memory = line.split(':').nth(1).unwrap_or("N/A").to_string();
+                } else if line.starts_with("used_cpu_user:") {
+                    self.used_cpu = line.split(':').nth(1).unwrap_or("N/A").to_string();
+                }
+            }
+        }
+
+        // 2. Refresh key list (keep current filter)
+        let (next, keys) = self.redis_client.scan("0", &self.filter_pattern, 100)?;
+        self.next = next;
+        self.keys = keys;
+        self.rebuild_tree();
+
+        // 3. Refresh current selection if any
+        if let Some(loaded) = self.loaded_key.clone() {
+            self.fetch_details_for_key(&loaded.key)?;
+        }
+
+        self.message = Some("Data refreshed.".to_string());
+        Ok(())
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
@@ -147,6 +193,7 @@ impl<R: RedisOps> App<R> {
                 self.is_searching = true;
                 self.search_query.clear();
             }
+            KeyCode::Char('r') => self.refresh()?,
             KeyCode::Tab => {
                 self.focus = match self.focus {
                     Focus::LeftMenu => {
@@ -632,7 +679,7 @@ impl<R: RedisOps> App<R> {
         match &self.message {
             Some(msg) => msg.clone(),
             None => format!(
-                "{} | q: Quit | ↑↓: Navigate | d: Delete | n: Next Keys | ←→: Page Collection",
+                "{} | r: Refresh | q: Quit | ↑↓: Navigate | d: Delete | n: Next Keys | ←→: Page",
                 self.redis_client.url()
             ),
         }

@@ -35,6 +35,7 @@ pub trait RedisOps:
     + commands::ListCommands
     + commands::SetCommands
     + commands::SortedSetCommands
+    + commands::ServerCommands
     + Send
     + Sync
 {
