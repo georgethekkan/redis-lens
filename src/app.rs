@@ -61,26 +61,13 @@ pub struct App<R: RedisOps> {
     // Redis Stats
     pub used_memory: String,
     pub used_cpu: String,
+    // Caches
+    pub key_types: BTreeMap<String, String>,
 }
 
 impl<R: RedisOps> App<R> {
     pub fn new(redis_client: R) -> Result<Self> {
-        let total_keys = redis_client.dbsize().unwrap_or(0);
-        let mut used_memory = "N/A".to_string();
-        let mut used_cpu = "N/A".to_string();
-
-        if let Ok(info) = redis_client.info() {
-            for line in info.lines() {
-                if line.starts_with("used_memory_human:") {
-                    used_memory = line.split(':').nth(1).unwrap_or("N/A").to_string();
-                } else if line.starts_with("used_cpu_user:") {
-                    used_cpu = line.split(':').nth(1).unwrap_or("N/A").to_string();
-                }
-            }
-        }
-
         let (next, keys) = redis_client.scan("0", "*", 100)?;
-        let message = None;
 
         let mut app = Self {
             exit: false,
@@ -88,7 +75,7 @@ impl<R: RedisOps> App<R> {
             keys: keys.clone(),
             next,
             list_state: ListState::default(),
-            message,
+            message: None,
             loaded_key: None,
             collection_page: 0,
             collection_page_size: 50,
@@ -97,29 +84,20 @@ impl<R: RedisOps> App<R> {
             filter_pattern: "*".to_string(),
             search_query: String::new(),
             is_searching: false,
-            total_keys,
+            total_keys: 0,
             focus: Focus::LeftMenu,
             details_table_state: ratatui::widgets::TableState::default(),
-            used_memory,
-            used_cpu,
+            used_memory: "N/A".to_string(),
+            used_cpu: "N/A".to_string(),
+            key_types: BTreeMap::new(),
         };
 
+        app.update_stats()?;
         app.rebuild_tree();
         Ok(app)
     }
 
-    pub fn rebuild_tree(&mut self) {
-        let mut types = BTreeMap::new();
-        for key in &self.keys {
-            if let Ok(t) = self.redis_client.key_type(key) {
-                types.insert(key.clone(), t);
-            }
-        }
-        self.tree.rebuild(&self.keys, &types);
-    }
-
-    pub fn refresh(&mut self) -> Result<()> {
-        // 1. Refresh server stats
+    pub fn update_stats(&mut self) -> Result<()> {
         self.total_keys = self.redis_client.dbsize().unwrap_or(0);
         if let Ok(info) = self.redis_client.info() {
             for line in info.lines() {
@@ -130,8 +108,26 @@ impl<R: RedisOps> App<R> {
                 }
             }
         }
+        Ok(())
+    }
 
-        // 2. Refresh key list (keep current filter)
+    pub fn rebuild_tree(&mut self) {
+        for key in &self.keys {
+            if !self.key_types.contains_key(key) {
+                if let Ok(t) = self.redis_client.key_type(key) {
+                    self.key_types.insert(key.clone(), t);
+                }
+            }
+        }
+        self.tree.rebuild(&self.keys, &self.key_types);
+    }
+
+    pub fn refresh(&mut self) -> Result<()> {
+        // 1. Refresh server stats
+        self.update_stats()?;
+
+        // 2. Refresh key list (keep current filter). Clear cache to catch type changes if any.
+        self.key_types.clear();
         let (next, keys) = self.redis_client.scan("0", &self.filter_pattern, 100)?;
         self.next = next;
         self.keys = keys;
@@ -457,12 +453,6 @@ impl<R: RedisOps> App<R> {
     }
 
     pub fn fetch_details_for_key(&mut self, key: &str) -> Result<()> {
-        // Logic previously in fetch_selected_key_details, but taking key arg
-        // Reuse code by extracting common logic or just copy-paste with adjustments for now to avoid massive refactor risk
-        // Actually, let's keep `fetch_selected_key_details` as the method that uses `list_state`?
-        // No, because list_state now points to a tree node, which might not correspond to `self.keys` index.
-        // So we need a new method `fetch_details_for_key`.
-
         let key = key.to_string();
 
         // 1. Get Type
@@ -481,55 +471,11 @@ impl<R: RedisOps> App<R> {
 
         // 3. Get Content & Length based on type
         let (length, content) = match key_type.as_str() {
-            "string" => {
-                let val = self
-                    .redis_client
-                    .get(&key)
-                    .unwrap_or_else(|e| e.to_string());
-                let len = self.redis_client.strlen(&key).unwrap_or(0);
-                (len, CollectionData::String(val, len as usize))
-            }
-            "list" => {
-                let len = self.redis_client.llen(&key).unwrap_or(0);
-                let (start, stop) = page_range_i64(self.collection_page, self.collection_page_size);
-                let items = self
-                    .redis_client
-                    .lrange(&key, start, stop)
-                    .unwrap_or_default();
-                (len, CollectionData::List(items))
-            }
-            "hash" => {
-                let len = self.redis_client.hlen(&key).unwrap_or(0);
-                let cursor = self.get_current_cursor();
-                // hscan returns (next_cursor, items)
-                let (next_cursor, items) = self
-                    .redis_client
-                    .hscan(&key, cursor, self.collection_page_size)
-                    .unwrap_or(("0".to_string(), vec![]));
-
-                self.update_next_cursor(next_cursor);
-                (len, CollectionData::Hash(items))
-            }
-            "set" => {
-                let len = self.redis_client.scard(&key).unwrap_or(0);
-                let cursor = self.get_current_cursor();
-                let (next_cursor, items) = self
-                    .redis_client
-                    .sscan(&key, cursor, self.collection_page_size)
-                    .unwrap_or(("0".to_string(), vec![]));
-
-                self.update_next_cursor(next_cursor);
-                (len, CollectionData::Set(items))
-            }
-            "zset" => {
-                let len = self.redis_client.zcard(&key).unwrap_or(0);
-                let (start, stop) = page_range_i64(self.collection_page, self.collection_page_size);
-                let items = self
-                    .redis_client
-                    .zrange_with_scores(&key, start, stop)
-                    .unwrap_or_default();
-                (len, CollectionData::ZSet(items))
-            }
+            "string" => self.fetch_string_content(&key),
+            "list" => self.fetch_list_content(&key),
+            "hash" => self.fetch_hash_content(&key),
+            "set" => self.fetch_set_content(&key),
+            "zset" => self.fetch_zset_content(&key),
             _ => (0, CollectionData::None),
         };
 
@@ -542,6 +488,56 @@ impl<R: RedisOps> App<R> {
         });
 
         Ok(())
+    }
+
+    fn fetch_string_content(&self, key: &str) -> (i64, CollectionData) {
+        let val = self.redis_client.get(key).unwrap_or_else(|e| e.to_string());
+        let len = self.redis_client.strlen(key).unwrap_or(0);
+        (len, CollectionData::String(val, len as usize))
+    }
+
+    fn fetch_list_content(&self, key: &str) -> (i64, CollectionData) {
+        let len = self.redis_client.llen(key).unwrap_or(0);
+        let (start, stop) = page_range_i64(self.collection_page, self.collection_page_size);
+        let items = self
+            .redis_client
+            .lrange(key, start, stop)
+            .unwrap_or_default();
+        (len, CollectionData::List(items))
+    }
+
+    fn fetch_hash_content(&mut self, key: &str) -> (i64, CollectionData) {
+        let len = self.redis_client.hlen(key).unwrap_or(0);
+        let cursor = self.get_current_cursor();
+        let (next_cursor, items) = self
+            .redis_client
+            .hscan(key, cursor, self.collection_page_size)
+            .unwrap_or(("0".to_string(), vec![]));
+
+        self.update_next_cursor(next_cursor);
+        (len, CollectionData::Hash(items))
+    }
+
+    fn fetch_set_content(&mut self, key: &str) -> (i64, CollectionData) {
+        let len = self.redis_client.scard(key).unwrap_or(0);
+        let cursor = self.get_current_cursor();
+        let (next_cursor, items) = self
+            .redis_client
+            .sscan(key, cursor, self.collection_page_size)
+            .unwrap_or(("0".to_string(), vec![]));
+
+        self.update_next_cursor(next_cursor);
+        (len, CollectionData::Set(items))
+    }
+
+    fn fetch_zset_content(&self, key: &str) -> (i64, CollectionData) {
+        let len = self.redis_client.zcard(key).unwrap_or(0);
+        let (start, stop) = page_range_i64(self.collection_page, self.collection_page_size);
+        let items = self
+            .redis_client
+            .zrange_with_scores(key, start, stop)
+            .unwrap_or_default();
+        (len, CollectionData::ZSet(items))
     }
 
     fn delete_selected_key(&mut self) -> Result<()> {
@@ -557,6 +553,7 @@ impl<R: RedisOps> App<R> {
                     if let Some(pos) = self.keys.iter().position(|k| *k == path) {
                         self.keys.remove(pos);
                     }
+                    self.key_types.remove(&path);
                     self.rebuild_tree();
 
                     // Reset selection?? Or try to keep index?
