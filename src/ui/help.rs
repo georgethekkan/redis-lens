@@ -8,8 +8,6 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 
 pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
     let help_line = Line::from(vec![
-        Span::styled(app.redis_client.url(), THEME.help_desc),
-        Span::raw(" | "),
         Span::styled("Filter:", THEME.help_desc),
         Span::styled(format!(" {} ", app.filter_pattern), THEME.help_key),
         Span::raw("| "),
