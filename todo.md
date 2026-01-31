@@ -38,12 +38,12 @@
 - [ ] Copy key/value to clipboard
 
 ### 6. Navigation & UX Improvements
-- [ ] Keyboard shortcuts help modal (h or ?)
+- [x] Keyboard shortcuts help modal (h or ?)
 - [ ] Tab navigation between panes
-- [ ] Better pagination UI with current/total pages
+- [x] Better pagination UI with current/total pages
 - [ ] Sort keys by: name, TTL, type, memory usage
-- [ ] Light/dark theme support
-- [ ] Color code keys by type
+- [x] Light/dark theme support (Theme infrastructure implemented)
+- [x] Color code keys by type
 
 ### 7. Performance Features
 - [ ] Async loading for large key scans
@@ -82,9 +82,9 @@
 - [ ] Update README with usage examples
 
 ## ✅ Quick Wins (Easy to Implement First)
-- [ ] Display key count
+- [x] Display key count
 - [ ] Add Ctrl+f for search
-- [ ] Show key size in bytes
-- [ ] Color code keys by type
+- [x] Show key size in bytes
+- [x] Color code keys by type
 - [ ] Horizontal scrolling for long values
-- [ ] Display selected key name in details panel
+- [x] Display selected key name in details panel

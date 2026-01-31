@@ -4,10 +4,13 @@ pub struct Theme {
     pub base: Style,
     pub block_title: Style,
     pub block_border: Style,
+    pub header_title: Style,
+    pub header_info: Style,
 
     pub key_folder: Style,
     pub key_item: Style,
     pub key_highlight: Style,
+    pub tree_symbol: Style,
 
     pub metadata_label: Style,
     pub metadata_value_key: Style,
@@ -35,13 +38,19 @@ pub const THEME: Theme = Theme {
     base: Style::new().fg(Color::White),
     block_title: Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
     block_border: Style::new().fg(Color::Indexed(240)), // Dark gray
+    header_title: Style::new()
+        .fg(Color::Black)
+        .bg(Color::Cyan)
+        .add_modifier(Modifier::BOLD),
+    header_info: Style::new().fg(Color::Cyan).add_modifier(Modifier::ITALIC),
 
-    key_folder: Style::new().fg(Color::Blue).add_modifier(Modifier::BOLD),
+    key_folder: Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
     key_item: Style::new().fg(Color::White),
     key_highlight: Style::new()
         .fg(Color::Black)
         .bg(Color::Cyan)
         .add_modifier(Modifier::BOLD),
+    tree_symbol: Style::new().fg(Color::Yellow),
 
     metadata_label: Style::new().fg(Color::DarkGray),
     metadata_value_key: Style::new().fg(Color::White).add_modifier(Modifier::BOLD),

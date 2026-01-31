@@ -9,6 +9,7 @@ pub trait KeyCommands {
     fn ttl(&self, key: &str) -> Result<Option<i64>>;
     fn key_type(&self, key: &str) -> Result<String>;
     fn delete_all(&self, pattern: &str) -> Result<usize>;
+    fn dbsize(&self) -> Result<u64>;
 }
 
 impl KeyCommands for RedisClient {
@@ -66,5 +67,13 @@ impl KeyCommands for RedisClient {
             }
         }
         Ok(total_deleted)
+    }
+
+    fn dbsize(&self) -> Result<u64> {
+        let mut con = self.get_connection()?;
+        let size: u64 = redis::cmd("DBSIZE")
+            .query(&mut con)
+            .context("Failed to get DBSIZE from Redis")?;
+        Ok(size)
     }
 }

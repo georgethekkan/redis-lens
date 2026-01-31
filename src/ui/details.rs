@@ -5,13 +5,16 @@ use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, Wrap};
 
 use crate::app::{App, CollectionData, LoadedKeyData};
 use crate::redis::RedisOps;
+use crate::ui::theme::THEME;
 
 pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
     // Check if we have a loaded key
     let Some(data) = &app.loaded_key else {
         let block = Block::default()
-            .title("Details")
+            .title(" Details ")
+            .title_style(THEME.block_title)
             .borders(Borders::ALL)
+            .border_style(THEME.block_border)
             .style(Style::default().fg(Color::DarkGray));
         let p = Paragraph::new("No key selected").block(block);
         frame.render_widget(p, area);
@@ -34,8 +37,9 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
 fn draw_metadata(frame: &mut Frame, data: &LoadedKeyData, area: Rect) {
     let block = Block::default()
         .title(" Metadata ")
+        .title_style(THEME.block_title)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan));
+        .border_style(THEME.block_border);
 
     let inner_area = block.inner(area);
     frame.render_widget(block, area);
@@ -50,8 +54,11 @@ fn draw_metadata(frame: &mut Frame, data: &LoadedKeyData, area: Rect) {
         .split(inner_area);
 
     // Row 1: Key Name
-    let key_text = format!(" Key: {}", data.key);
-    frame.render_widget(Paragraph::new(key_text).bold().fg(Color::White), layout[0]);
+    let key_text = format!(" Key:  {}", data.key);
+    frame.render_widget(
+        Paragraph::new(key_text).style(THEME.metadata_value_key),
+        layout[0],
+    );
 
     // Row 2: Type & Length
     let type_text = format!(
@@ -59,18 +66,34 @@ fn draw_metadata(frame: &mut Frame, data: &LoadedKeyData, area: Rect) {
         data.key_type.to_uppercase(),
         data.length
     );
-    frame.render_widget(Paragraph::new(type_text).fg(Color::Yellow), layout[1]);
+    frame.render_widget(
+        Paragraph::new(type_text).style(THEME.metadata_value_type),
+        layout[1],
+    );
 
     // Row 3: TTL
     let ttl_text = format!(" TTL:  {}", data.ttl);
-    frame.render_widget(Paragraph::new(ttl_text).fg(Color::Green), layout[2]);
+    frame.render_widget(
+        Paragraph::new(ttl_text).style(THEME.metadata_value_ttl),
+        layout[2],
+    );
 }
 
 fn draw_content<R: RedisOps>(frame: &mut Frame, app: &App<R>, data: &LoadedKeyData, area: Rect) {
+    let type_color = match data.key_type.as_str() {
+        "string" => THEME.type_string,
+        "list" => THEME.type_list,
+        "hash" => THEME.type_hash,
+        "set" => THEME.type_set,
+        "zset" => THEME.type_zset,
+        _ => Color::White,
+    };
+
     let block = Block::default()
         .title(" Content ")
+        .title_style(THEME.block_title)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Magenta));
+        .border_style(Style::default().fg(type_color));
 
     let inner_area = block.inner(area);
     frame.render_widget(block, area);
@@ -89,17 +112,14 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &App<R>, data: &LoadedKeyDa
                 .enumerate()
                 .map(|(i, item)| {
                     Row::new(vec![
-                        Cell::from((start_index + i).to_string())
-                            .style(Style::default().fg(Color::DarkGray)),
+                        Cell::from((start_index + i).to_string()).style(THEME.table_index),
                         Cell::from(item.clone()),
                     ])
                 })
                 .collect();
 
             let table = Table::new(rows, [Constraint::Length(6), Constraint::Min(0)])
-                .header(
-                    Row::new(vec!["Index", "Value"]).style(Style::default().bold().underlined()),
-                )
+                .header(Row::new(vec!["Index", "Value"]).style(THEME.table_header))
                 .column_spacing(1);
             frame.render_widget(table, inner_area);
         }
@@ -108,7 +128,7 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &App<R>, data: &LoadedKeyDa
                 .iter()
                 .map(|(field, value)| {
                     Row::new(vec![
-                        Cell::from(field.clone()).fg(Color::Cyan),
+                        Cell::from(field.clone()).style(THEME.table_field),
                         Cell::from(value.clone()),
                     ])
                 })
@@ -118,7 +138,7 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &App<R>, data: &LoadedKeyDa
                 rows,
                 [Constraint::Percentage(30), Constraint::Percentage(70)],
             )
-            .header(Row::new(vec!["Field", "Value"]).style(Style::default().bold().underlined()))
+            .header(Row::new(vec!["Field", "Value"]).style(THEME.table_header))
             .column_spacing(1);
             frame.render_widget(table, inner_area);
         }
@@ -129,7 +149,7 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &App<R>, data: &LoadedKeyDa
                 .collect();
 
             let table = Table::new(rows, [Constraint::Min(0)])
-                .header(Row::new(vec!["Member"]).style(Style::default().bold().underlined()))
+                .header(Row::new(vec!["Member"]).style(THEME.table_header))
                 .column_spacing(1);
             frame.render_widget(table, inner_area);
         }
@@ -138,16 +158,14 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &App<R>, data: &LoadedKeyDa
                 .iter()
                 .map(|(member, score)| {
                     Row::new(vec![
-                        Cell::from(format!("{:.4}", score)).fg(Color::Yellow),
+                        Cell::from(format!("{:.4}", score)).fg(THEME.type_zset),
                         Cell::from(member.clone()),
                     ])
                 })
                 .collect();
 
             let table = Table::new(rows, [Constraint::Length(15), Constraint::Min(0)])
-                .header(
-                    Row::new(vec!["Score", "Member"]).style(Style::default().bold().underlined()),
-                )
+                .header(Row::new(vec!["Score", "Member"]).style(THEME.table_header))
                 .column_spacing(1);
             frame.render_widget(table, inner_area);
         }

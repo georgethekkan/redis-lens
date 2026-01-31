@@ -5,6 +5,7 @@ use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Table, Widget}
 
 use crate::app::App;
 use crate::redis::RedisOps;
+use crate::ui::theme::THEME;
 
 pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, left: Rect) {
     // Left panel: key tree
@@ -23,24 +24,33 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, left: Rect) {
             };
 
             // Apply different styles depending on if it's a key or folder
-            let content = format!("{} {} {}", indent, symbol, name);
-            let mut style = Style::default();
+            let style = if !*is_key {
+                THEME.key_folder
+            } else {
+                THEME.key_item
+            };
 
-            if !*is_key {
-                style = style.add_modifier(Modifier::BOLD).fg(Color::Blue);
-            }
+            use ratatui::text::{Line, Span};
+            let content = Line::from(vec![
+                Span::raw(indent),
+                Span::styled(symbol, THEME.tree_symbol),
+                Span::raw("  "),
+                Span::styled(name, style),
+            ]);
 
-            ListItem::new(content).style(style)
+            ListItem::new(content)
         })
         .collect();
 
     let list = List::new(list_items)
-        .block(Block::default().borders(Borders::ALL).title("Keys"))
-        .highlight_style(
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Keys ")
+                .title_style(THEME.block_title)
+                .border_style(THEME.block_border),
         )
+        .highlight_style(THEME.key_highlight)
         .highlight_symbol(">> ");
 
     frame.render_stateful_widget(list, left, &mut app.list_state);

@@ -48,10 +48,12 @@ pub struct App<R: RedisOps> {
     pub filter_pattern: String,
     pub search_query: String,
     pub is_searching: bool,
+    pub total_keys: u64,
 }
 
 impl<R: RedisOps> App<R> {
     pub fn new(redis_client: R) -> Result<Self> {
+        let total_keys = redis_client.dbsize().unwrap_or(0);
         let (next, keys) = redis_client.scan("0", "*", 100)?;
         let message = None;
 
@@ -70,6 +72,7 @@ impl<R: RedisOps> App<R> {
             filter_pattern: "*".to_string(),
             search_query: String::new(),
             is_searching: false,
+            total_keys,
         };
 
         app.rebuild_tree();

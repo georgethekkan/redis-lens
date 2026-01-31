@@ -7,16 +7,26 @@ use crate::app::App;
 use crate::redis::RedisOps;
 
 mod details;
+mod header;
 mod help;
 mod left_menu;
+pub mod theme;
+
+use theme::THEME;
 
 pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>) {
-    // Overall layout: main area and help area
+    // Overall layout: Header, main area, and help area
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .margin(0)
-        .constraints([Constraint::Min(0), Constraint::Length(3)]);
-    let [main_area, help_area] = layout.areas(frame.area());
+        .constraints([
+            Constraint::Length(1), // Header
+            Constraint::Min(0),    // Main area
+            Constraint::Length(3), // Help area
+        ]);
+    let [header_area, main_area, help_area] = layout.areas(frame.area());
+
+    header::draw(frame, app, header_area);
 
     // Add left and right panels in main_area
     let layout = Layout::default()
@@ -32,11 +42,12 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>) {
         let area = centered_rect(60, 20, frame.area());
         let block = Block::default()
             .title(" Search Pattern ")
+            .title_style(THEME.block_title)
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Yellow));
+            .border_style(THEME.search_popup);
         let p = Paragraph::new(app.search_query.as_str())
             .block(block)
-            .style(Style::default().fg(Color::White));
+            .style(THEME.search_input);
         frame.render_widget(ratatui::widgets::Clear, area); // Clear background
         frame.render_widget(p, area);
     }
