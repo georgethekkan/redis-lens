@@ -189,8 +189,9 @@ impl<R: RedisOps> App<R> {
         self.rebuild_tree();
 
         // 3. Refresh current selection if any
-        if let Some(loaded) = self.loaded_key.clone() {
-            self.fetch_details_for_key(&loaded.key)?;
+        if let Some(loaded) = &self.loaded_key {
+            let key_name = loaded.key.clone();
+            self.fetch_details_for_key(&key_name)?;
         }
 
         self.message = Some("Data refreshed.".to_string());
@@ -528,30 +529,30 @@ impl<R: RedisOps> App<R> {
         let Some(index) = self.details_table_state.selected() else {
             return Ok(());
         };
-        let Some(data) = self.loaded_key.clone() else {
+        let Some(loaded) = &self.loaded_key else {
             return Ok(());
         };
 
-        let key = &data.key;
-        match &data.content {
+        let key = loaded.key.clone();
+        match &loaded.content {
             CollectionData::Hash(fields) => {
                 if let Some((field, _)) = fields.get(index) {
-                    self.redis_client.hdel(key, field)?;
+                    self.redis_client.hdel(&key, field)?;
                 }
             }
             CollectionData::List(items) => {
                 if let Some(value) = items.get(index) {
-                    self.redis_client.lrem(key, 1, value)?;
+                    self.redis_client.lrem(&key, 1, value)?;
                 }
             }
             CollectionData::Set(members) => {
                 if let Some(member) = members.get(index) {
-                    self.redis_client.srem(key, member)?;
+                    self.redis_client.srem(&key, member)?;
                 }
             }
             CollectionData::ZSet(items) => {
                 if let Some((member, _)) = items.get(index) {
-                    self.redis_client.zrem(key, member)?;
+                    self.redis_client.zrem(&key, member)?;
                 }
             }
             _ => return Ok(()),
@@ -623,24 +624,24 @@ impl<R: RedisOps> App<R> {
     }
 
     fn save_edit(&mut self) -> Result<()> {
-        let Some(loaded) = self.loaded_key.clone() else {
+        let Some(loaded) = &self.loaded_key else {
             self.is_editing = false;
             return Ok(());
         };
 
-        let key = &loaded.key;
+        let key = loaded.key.clone();
         let new_value = self.edit_buffer.clone();
 
         match &loaded.content {
             CollectionData::String(_, _) => {
-                self.redis_client.set(key, &new_value)?;
+                self.redis_client.set(&key, &new_value)?;
                 self.message = Some(format!("Updated string: {}", key));
             }
             CollectionData::Hash(fields) => {
                 if let Some(index) = self.details_table_state.selected()
                     && let Some((field, _)) = fields.get(index)
                 {
-                    self.redis_client.hset(key, field, &new_value)?;
+                    self.redis_client.hset(&key, field, &new_value)?;
                     self.message = Some(format!("Updated hash field: {}", field));
                 }
             }
@@ -648,21 +649,21 @@ impl<R: RedisOps> App<R> {
                 if let Some(index) = self.details_table_state.selected() {
                     let list_index =
                         (self.collection_page * self.collection_page_size + index) as i64;
-                    self.redis_client.lset(key, list_index, &new_value)?;
+                    self.redis_client.lset(&key, list_index, &new_value)?;
                     self.message = Some(format!("Updated list item at index {}", list_index));
                 }
             }
             CollectionData::Set(_) => {
-                self.redis_client.srem(key, &self.original_value)?;
-                self.redis_client.sadd(key, &new_value)?;
+                self.redis_client.srem(&key, &self.original_value)?;
+                self.redis_client.sadd(&key, &new_value)?;
                 self.message = Some("Updated set member".to_string());
             }
             CollectionData::ZSet(items) => {
                 if let Some(index) = self.details_table_state.selected()
                     && let Some((_, score)) = items.get(index)
                 {
-                    self.redis_client.zrem(key, &self.original_value)?;
-                    self.redis_client.zadd(key, *score, &new_value)?;
+                    self.redis_client.zrem(&key, &self.original_value)?;
+                    self.redis_client.zadd(&key, *score, &new_value)?;
                     self.message = Some("Updated sorted set member".to_string());
                 }
             }
@@ -671,7 +672,7 @@ impl<R: RedisOps> App<R> {
 
         self.is_editing = false;
         self.edit_buffer.clear();
-        self.fetch_details_for_key(key)?;
+        self.fetch_details_for_key(&key)?;
         Ok(())
     }
 
