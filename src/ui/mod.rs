@@ -67,22 +67,18 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>) {
         frame.render_widget(p, area);
     }
 
-    if app.is_inserting {
+    if let Some(ins) = &app.insert {
         let area = centered_rect(60, 25, frame.area());
-        let (title, content, hint) = match app.insert_step {
-            0 => (
-                " 1/3: Key Name ",
-                app.insert_name.as_str(),
-                "Enter the key name",
-            ),
+        let (title, content, hint) = match ins.step {
+            0 => (" 1/3: Key Name ", ins.name.as_str(), "Enter the key name"),
             1 => (
                 " 2/3: Key Type ",
-                app.insert_type.as_str(),
+                ins.insert_type.as_str(),
                 "(s:string, h:hash, l:list, e:set, z:zset)",
             ),
             2 => (
                 " 3/3: Value Data ",
-                app.insert_value.as_str(),
+                ins.value.as_str(),
                 "Enter value (H: f:v, Z: s:m)",
             ),
             _ => ("", "", ""),

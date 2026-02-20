@@ -2,11 +2,16 @@ use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::DefaultTerminal;
 use ratatui::widgets::{ListState, Row};
+use tracing::warn;
+
+use crate::app::insert::{Insert, InsertDataType};
 
 use super::redis::commands::*;
 use super::redis::{RedisClient, RedisOps};
 use super::tree::Tree;
 use super::ui;
+
+mod insert;
 
 use std::collections::BTreeMap;
 
@@ -54,15 +59,10 @@ pub struct App<R: RedisOps> {
     pub filter_pattern: String,
     pub search_query: String,
     pub is_searching: bool,
-    pub total_keys: u64,
     // Navigation
     pub focus: Focus,
     pub details_table_state: ratatui::widgets::TableState,
-    // Redis Stats
-    pub used_memory: String,
-    pub used_cpu: String,
-    pub server_name: String,
-    pub server_version: String,
+    pub stats: Stats,
     // Caches
     pub key_types: BTreeMap<String, String>,
     // Editing
@@ -70,16 +70,35 @@ pub struct App<R: RedisOps> {
     pub edit_buffer: String,
     pub original_value: String,
     // Insertion
-    pub is_inserting: bool,
-    pub insert_name: String,
-    pub insert_value: String,
-    pub insert_type: String, // "string", "hash", "list", "set", "zset"
-    pub insert_step: usize,  // 0: Name, 1: Type, 2: Value/Field
+    pub insert: Option<Insert>,
     // Database selection
     pub is_selecting_db: bool,
     pub db_cursor: u8,
     // Help
     pub show_help: bool,
+}
+
+#[derive(Debug, Default)]
+pub struct Stats {
+    pub used_memory: String,
+    pub used_cpu: String,
+    pub server_name: String,
+    pub server_version: String,
+    pub total_keys: u64,
+}
+
+impl Stats {
+    pub fn display(&self, clean_url: &str) -> String {
+        format!(
+            " {} {}  |  {}  |  Keys: {}  |  Mem: {}  |  CPU: {} ",
+            self.server_name.to_uppercase(),
+            self.server_version,
+            clean_url,
+            self.total_keys,
+            self.used_memory,
+            self.used_cpu
+        )
+    }
 }
 
 impl<R: RedisOps> App<R> {
@@ -101,22 +120,14 @@ impl<R: RedisOps> App<R> {
             filter_pattern: "*".to_string(),
             search_query: String::new(),
             is_searching: false,
-            total_keys: 0,
             focus: Focus::LeftMenu,
             details_table_state: ratatui::widgets::TableState::default(),
-            used_memory: "N/A".to_string(),
-            used_cpu: "N/A".to_string(),
-            server_name: "Redis".to_string(),
-            server_version: "N/A".to_string(),
+            stats: Stats::default(),
             key_types: BTreeMap::new(),
             is_editing: false,
             edit_buffer: String::new(),
             original_value: String::new(),
-            is_inserting: false,
-            insert_name: String::new(),
-            insert_value: String::new(),
-            insert_type: "string".to_string(),
-            insert_step: 0,
+            insert: None,
             is_selecting_db: false,
             db_cursor: 0,
             show_help: false,
@@ -128,21 +139,35 @@ impl<R: RedisOps> App<R> {
     }
 
     pub fn update_stats(&mut self) -> Result<()> {
-        self.total_keys = self.redis_client.dbsize().unwrap_or(0);
-        if let Ok(info) = self.redis_client.info() {
-            for line in info.lines() {
-                if line.starts_with("used_memory_human:") {
-                    self.used_memory = line.split(':').nth(1).unwrap_or("N/A").to_string();
-                } else if line.starts_with("used_cpu_user:") {
-                    self.used_cpu = line.split(':').nth(1).unwrap_or("N/A").to_string();
-                } else if line.starts_with("redis_version:") {
-                    self.server_version = line.split(':').nth(1).unwrap_or("N/A").to_string();
-                } else if line.starts_with("valkey_version:") {
-                    self.server_name = "Valkey".to_string();
-                    self.server_version = line.split(':').nth(1).unwrap_or("N/A").to_string();
-                }
+        if let Err(err) = self.redis_client.info() {
+            warn!("Error fetching info, {}", err); //todo this should be on the status bar
+            return Ok(());
+        }
+
+        let mut stats = &mut self.stats;
+        stats.total_keys = self.redis_client.dbsize().unwrap_or(0);
+
+        let info = match self.redis_client.info() {
+            Ok(info) => info,
+            Err(err) => {
+                warn!("Error fetching info, {}", err); //todo this should be on the status bar
+                return Ok(());
+            }
+        };
+
+        for line in info.lines() {
+            if line.starts_with("used_memory_human:") {
+                stats.used_memory = line.split(':').nth(1).unwrap_or("N/A").to_string();
+            } else if line.starts_with("used_cpu_user:") {
+                stats.used_cpu = line.split(':').nth(1).unwrap_or("N/A").to_string();
+            } else if line.starts_with("redis_version:") {
+                stats.server_version = line.split(':').nth(1).unwrap_or("N/A").to_string();
+            } else if line.starts_with("valkey_version:") {
+                stats.server_name = "Valkey".to_string();
+                stats.server_version = line.split(':').nth(1).unwrap_or("N/A").to_string();
             }
         }
+
         Ok(())
     }
 
@@ -238,8 +263,17 @@ impl<R: RedisOps> App<R> {
             return Ok(());
         }
 
-        if self.is_inserting {
-            self.handle_insertion_key_event(key)?;
+        if let Some(ins) = &mut self.insert {
+            let resp = ins.handle_insertion_key_event(key)?;
+            match resp {
+                insert::InsertKeyEvent::Noop => {}
+                insert::InsertKeyEvent::PerformInsert => {
+                    let ins = ins.clone();
+                    self.perform_insertion(ins.name, ins.value, ins.insert_type)?;
+                    self.insert = None;
+                }
+                insert::InsertKeyEvent::NotInserting => self.insert = None,
+            }
             return Ok(());
         }
 
@@ -262,21 +296,19 @@ impl<R: RedisOps> App<R> {
             }
             KeyCode::Char('e') => self.start_editing(),
             KeyCode::Char('i') => {
-                self.is_inserting = true;
-                self.insert_step = 0;
-                self.insert_name.clear();
-                self.insert_value.clear();
-                self.insert_type = "string".to_string();
+                self.enable_insert_mode();
             }
             KeyCode::Char('a') => {
                 if self.focus == Focus::Details && self.loaded_key.is_some() {
                     let key_type = self.loaded_key.as_ref().unwrap().key_type.clone();
                     if key_type != "string" {
-                        self.is_inserting = true;
-                        self.insert_step = 2; // Skip name/type, go straight to value
-                        self.insert_name = self.loaded_key.as_ref().unwrap().key.clone();
-                        self.insert_type = key_type;
-                        self.insert_value.clear();
+                        let insert = Insert {
+                            step: 2, // Skip name/type, go straight to value
+                            name: self.loaded_key.as_ref().unwrap().key.clone(),
+                            insert_type: key_type.as_str().into(),
+                            value: String::new(),
+                        };
+                        self.insert = Some(insert);
                     }
                 }
             }
@@ -307,6 +339,57 @@ impl<R: RedisOps> App<R> {
                 Focus::Details => self.handle_details_key_event(key)?,
             },
         }
+        Ok(())
+    }
+
+    fn enable_insert_mode(&mut self) {
+        self.insert = Some(Insert::default())
+    }
+
+    fn perform_insertion(
+        &mut self,
+        key: String,
+        value: String,
+        insert_type: InsertDataType,
+    ) -> Result<()> {
+        match insert_type {
+            InsertDataType::String => {
+                self.redis_client.set(&key, &value)?;
+            }
+            InsertDataType::Hash => {
+                // Expect "field:value"
+                if let Some((field, val)) = value.split_once(':') {
+                    self.redis_client.hset(&key, field, val)?;
+                } else {
+                    self.message = Some("Format for Hash: field:value".to_string());
+                    return Ok(());
+                }
+            }
+            InsertDataType::List => {
+                self.redis_client.rpush(&key, &value)?;
+            }
+            InsertDataType::Set => {
+                self.redis_client.sadd(&key, &value)?;
+            }
+            InsertDataType::Zset => {
+                // Expect "score:member"
+                if let Some((score_str, member)) = value.split_once(':') {
+                    if let Ok(score) = score_str.parse::<f64>() {
+                        self.redis_client.zadd(&key, score, member)?;
+                    } else {
+                        self.message = Some("Format for ZSet: score:member".to_string());
+                        return Ok(());
+                    }
+                } else {
+                    self.message = Some("Format for ZSet: score:member".to_string());
+                    return Ok(());
+                }
+            }
+            _ => {}
+        }
+
+        self.message = Some(format!("Inserted into {}", key));
+        self.refresh()?;
         Ok(())
     }
 
@@ -489,94 +572,6 @@ impl<R: RedisOps> App<R> {
             self.details_table_state.select(Some(new_len - 1));
         }
 
-        Ok(())
-    }
-
-    fn handle_insertion_key_event(&mut self, key: KeyEvent) -> Result<()> {
-        match key.code {
-            KeyCode::Enter => {
-                if self.insert_step < 2 {
-                    self.insert_step += 1;
-                } else {
-                    self.perform_insertion()?;
-                    self.is_inserting = false;
-                }
-            }
-            KeyCode::Esc => {
-                self.is_inserting = false;
-            }
-            KeyCode::Char(c) => match self.insert_step {
-                0 => self.insert_name.push(c),
-                1 => {
-                    // Type selection - keep it simple: s: string, h: hash, l: list, e: set, z: zset
-                    match c {
-                        's' => self.insert_type = "string".to_string(),
-                        'h' => self.insert_type = "hash".to_string(),
-                        'l' => self.insert_type = "list".to_string(),
-                        'e' => self.insert_type = "set".to_string(),
-                        'z' => self.insert_type = "zset".to_string(),
-                        _ => {}
-                    }
-                }
-                2 => self.insert_value.push(c),
-                _ => {}
-            },
-            KeyCode::Backspace => match self.insert_step {
-                0 => {
-                    self.insert_name.pop();
-                }
-                2 => {
-                    self.insert_value.pop();
-                }
-                _ => {}
-            },
-            _ => {}
-        }
-        Ok(())
-    }
-
-    fn perform_insertion(&mut self) -> Result<()> {
-        let key = self.insert_name.clone();
-        let value = self.insert_value.clone();
-
-        match self.insert_type.as_str() {
-            "string" => {
-                self.redis_client.set(&key, &value)?;
-            }
-            "hash" => {
-                // Expect "field:value"
-                if let Some((field, val)) = value.split_once(':') {
-                    self.redis_client.hset(&key, field, val)?;
-                } else {
-                    self.message = Some("Format for Hash: field:value".to_string());
-                    return Ok(());
-                }
-            }
-            "list" => {
-                self.redis_client.rpush(&key, &value)?;
-            }
-            "set" => {
-                self.redis_client.sadd(&key, &value)?;
-            }
-            "zset" => {
-                // Expect "score:member"
-                if let Some((score_str, member)) = value.split_once(':') {
-                    if let Ok(score) = score_str.parse::<f64>() {
-                        self.redis_client.zadd(&key, score, member)?;
-                    } else {
-                        self.message = Some("Format for ZSet: score:member".to_string());
-                        return Ok(());
-                    }
-                } else {
-                    self.message = Some("Format for ZSet: score:member".to_string());
-                    return Ok(());
-                }
-            }
-            _ => {}
-        }
-
-        self.message = Some(format!("Inserted into {}", key));
-        self.refresh()?;
         Ok(())
     }
 

@@ -23,16 +23,10 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
         .trim_start_matches("redis://")
         .trim_start_matches("rediss://");
 
+    let stats = &app.stats;
+
     let info_text = Line::from(vec![Span::styled(
-        format!(
-            " {} {}  |  {}  |  Keys: {}  |  Mem: {}  |  CPU: {} ",
-            app.server_name.to_uppercase(),
-            app.server_version,
-            clean_url,
-            app.total_keys,
-            app.used_memory,
-            app.used_cpu
-        ),
+        stats.display(clean_url),
         THEME.header_info,
     )]);
     let info = Paragraph::new(info_text);
