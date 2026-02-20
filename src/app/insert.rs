@@ -9,8 +9,9 @@ pub struct Insert {
     pub step: usize,                 // 0: Name, 1: Type, 2: Value/Field
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum InsertDataType {
+    #[default]
     None,
     String,
     Hash,
@@ -35,12 +36,6 @@ impl InsertDataType {
             InsertDataType::Zset => "zset",
             InsertDataType::None => "",
         }
-    }
-}
-
-impl Default for InsertDataType {
-    fn default() -> Self {
-        InsertDataType::String
     }
 }
 

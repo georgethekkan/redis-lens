@@ -139,21 +139,16 @@ impl<R: RedisOps> App<R> {
     }
 
     pub fn update_stats(&mut self) -> Result<()> {
-        if let Err(err) = self.redis_client.info() {
-            warn!("Error fetching info, {}", err); //todo this should be on the status bar
-            return Ok(());
-        }
-
-        let mut stats = &mut self.stats;
-        stats.total_keys = self.redis_client.dbsize().unwrap_or(0);
-
         let info = match self.redis_client.info() {
             Ok(info) => info,
             Err(err) => {
-                warn!("Error fetching info, {}", err); //todo this should be on the status bar
+                self.message = Some(format!("Error fetching info: {}", err));
                 return Ok(());
             }
         };
+
+        let mut stats = &mut self.stats;
+        stats.total_keys = self.redis_client.dbsize().unwrap_or(0);
 
         for line in info.lines() {
             if line.starts_with("used_memory_human:") {
@@ -173,10 +168,10 @@ impl<R: RedisOps> App<R> {
 
     pub fn rebuild_tree(&mut self) {
         for key in &self.keys {
-            if !self.key_types.contains_key(key) {
-                if let Ok(t) = self.redis_client.key_type(key) {
-                    self.key_types.insert(key.clone(), t);
-                }
+            if !self.key_types.contains_key(key)
+                && let Ok(t) = self.redis_client.key_type(key)
+            {
+                self.key_types.insert(key.clone(), t);
             }
         }
         self.tree.rebuild(&self.keys, &self.key_types);
@@ -207,11 +202,11 @@ impl<R: RedisOps> App<R> {
         loop {
             terminal.draw(|f| ui::draw(f, self))?;
 
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
-                    tracing::debug!("Key event: {:?}", key);
-                    self.handle_key_event(key)?;
-                }
+            if let Event::Key(key) = event::read()?
+                && key.kind == KeyEventKind::Press
+            {
+                tracing::debug!("Key event: {:?}", key);
+                self.handle_key_event(key)?;
             }
 
             if self.exit {
@@ -299,12 +294,14 @@ impl<R: RedisOps> App<R> {
                 self.enable_insert_mode();
             }
             KeyCode::Char('a') => {
-                if self.focus == Focus::Details && self.loaded_key.is_some() {
-                    let key_type = self.loaded_key.as_ref().unwrap().key_type.clone();
+                if self.focus == Focus::Details
+                    && let Some(loaded) = &self.loaded_key
+                {
+                    let key_type = loaded.key_type.clone();
                     if key_type != "string" {
                         let insert = Insert {
                             step: 2, // Skip name/type, go straight to value
-                            name: self.loaded_key.as_ref().unwrap().key.clone(),
+                            name: loaded.key.clone(),
                             insert_type: key_type.as_str().into(),
                             value: String::new(),
                         };
@@ -428,23 +425,22 @@ impl<R: RedisOps> App<R> {
             KeyCode::Char('n') => self.load_next_page()?,
 
             KeyCode::Right => {
-                if let Some(index) = self.list_state.selected() {
-                    if let Some((_, is_key, _, is_expanded, _)) =
+                if let Some(index) = self.list_state.selected()
+                    && let Some((_, is_key, _, is_expanded, _)) =
                         self.tree.flattened_items.get(index)
-                    {
-                        if *is_key {
-                            // If it's a key, move focus to Details (only if loaded)
-                            if self.loaded_key.is_some() {
-                                self.focus = Focus::Details;
-                                if self.details_table_state.selected().is_none() {
-                                    self.details_table_state.select(Some(0));
-                                }
+                {
+                    if *is_key {
+                        // If it's a key, move focus to Details (only if loaded)
+                        if self.loaded_key.is_some() {
+                            self.focus = Focus::Details;
+                            if self.details_table_state.selected().is_none() {
+                                self.details_table_state.select(Some(0));
                             }
-                        } else {
-                            // If it's a folder, just expand and stay focused here
-                            if !*is_expanded {
-                                self.expand_current();
-                            }
+                        }
+                    } else {
+                        // If it's a folder, just expand and stay focused here
+                        if !*is_expanded {
+                            self.expand_current();
                         }
                     }
                 }
@@ -584,39 +580,39 @@ impl<R: RedisOps> App<R> {
                     self.original_value = val.clone();
                 }
                 CollectionData::Hash(fields) => {
-                    if let Some(index) = self.details_table_state.selected() {
-                        if let Some((_, val)) = fields.get(index) {
-                            self.is_editing = true;
-                            self.edit_buffer = val.clone();
-                            self.original_value = val.clone();
-                        }
+                    if let Some(index) = self.details_table_state.selected()
+                        && let Some((_, val)) = fields.get(index)
+                    {
+                        self.is_editing = true;
+                        self.edit_buffer = val.clone();
+                        self.original_value = val.clone();
                     }
                 }
                 CollectionData::List(items) => {
-                    if let Some(index) = self.details_table_state.selected() {
-                        if let Some(val) = items.get(index) {
-                            self.is_editing = true;
-                            self.edit_buffer = val.clone();
-                            self.original_value = val.clone();
-                        }
+                    if let Some(index) = self.details_table_state.selected()
+                        && let Some(val) = items.get(index)
+                    {
+                        self.is_editing = true;
+                        self.edit_buffer = val.clone();
+                        self.original_value = val.clone();
                     }
                 }
                 CollectionData::Set(members) => {
-                    if let Some(index) = self.details_table_state.selected() {
-                        if let Some(val) = members.get(index) {
-                            self.is_editing = true;
-                            self.edit_buffer = val.clone();
-                            self.original_value = val.clone();
-                        }
+                    if let Some(index) = self.details_table_state.selected()
+                        && let Some(val) = members.get(index)
+                    {
+                        self.is_editing = true;
+                        self.edit_buffer = val.clone();
+                        self.original_value = val.clone();
                     }
                 }
                 CollectionData::ZSet(items) => {
-                    if let Some(index) = self.details_table_state.selected() {
-                        if let Some((val, _)) = items.get(index) {
-                            self.is_editing = true;
-                            self.edit_buffer = val.clone();
-                            self.original_value = val.clone();
-                        }
+                    if let Some(index) = self.details_table_state.selected()
+                        && let Some((val, _)) = items.get(index)
+                    {
+                        self.is_editing = true;
+                        self.edit_buffer = val.clone();
+                        self.original_value = val.clone();
                     }
                 }
                 _ => {
@@ -641,11 +637,11 @@ impl<R: RedisOps> App<R> {
                 self.message = Some(format!("Updated string: {}", key));
             }
             CollectionData::Hash(fields) => {
-                if let Some(index) = self.details_table_state.selected() {
-                    if let Some((field, _)) = fields.get(index) {
-                        self.redis_client.hset(key, field, &new_value)?;
-                        self.message = Some(format!("Updated hash field: {}", field));
-                    }
+                if let Some(index) = self.details_table_state.selected()
+                    && let Some((field, _)) = fields.get(index)
+                {
+                    self.redis_client.hset(key, field, &new_value)?;
+                    self.message = Some(format!("Updated hash field: {}", field));
                 }
             }
             CollectionData::List(_) => {
@@ -662,12 +658,12 @@ impl<R: RedisOps> App<R> {
                 self.message = Some("Updated set member".to_string());
             }
             CollectionData::ZSet(items) => {
-                if let Some(index) = self.details_table_state.selected() {
-                    if let Some((_, score)) = items.get(index) {
-                        self.redis_client.zrem(key, &self.original_value)?;
-                        self.redis_client.zadd(key, *score, &new_value)?;
-                        self.message = Some("Updated sorted set member".to_string());
-                    }
+                if let Some(index) = self.details_table_state.selected()
+                    && let Some((_, score)) = items.get(index)
+                {
+                    self.redis_client.zrem(key, &self.original_value)?;
+                    self.redis_client.zadd(key, *score, &new_value)?;
+                    self.message = Some("Updated sorted set member".to_string());
                 }
             }
             _ => {}
@@ -730,27 +726,27 @@ impl<R: RedisOps> App<R> {
     }
 
     fn toggle_expanded(&mut self) {
-        if let Some(index) = self.list_state.selected() {
-            if let Some(path) = self.tree.flattened_paths.get(index).cloned() {
-                // Find node and toggle
-                self.tree.toggle_expansion(&path);
-            }
+        if let Some(index) = self.list_state.selected()
+            && let Some(path) = self.tree.flattened_paths.get(index).cloned()
+        {
+            // Find node and toggle
+            self.tree.toggle_expansion(&path);
         }
     }
 
     fn expand_current(&mut self) {
-        if let Some(index) = self.list_state.selected() {
-            if let Some(path) = self.tree.flattened_paths.get(index).cloned() {
-                self.tree.set_expansion(&path, true);
-            }
+        if let Some(index) = self.list_state.selected()
+            && let Some(path) = self.tree.flattened_paths.get(index).cloned()
+        {
+            self.tree.set_expansion(&path, true);
         }
     }
 
     fn collapse_current(&mut self) {
-        if let Some(index) = self.list_state.selected() {
-            if let Some(path) = self.tree.flattened_paths.get(index).cloned() {
-                self.tree.set_expansion(&path, false);
-            }
+        if let Some(index) = self.list_state.selected()
+            && let Some(path) = self.tree.flattened_paths.get(index).cloned()
+        {
+            self.tree.set_expansion(&path, false);
         }
     }
 
@@ -843,30 +839,30 @@ impl<R: RedisOps> App<R> {
     }
 
     fn delete_selected_key(&mut self) -> Result<()> {
-        if let Some(index) = self.list_state.selected() {
-            if let Some(path) = self.tree.flattened_paths.get(index).cloned() {
-                let (_, is_key, _, _, _) = self.tree.flattened_items[index];
-                if is_key {
-                    self.redis_client.del(&path)?;
-                    self.message = Some(format!("Deleted key: {}", path));
+        if let Some(index) = self.list_state.selected()
+            && let Some(path) = self.tree.flattened_paths.get(index).cloned()
+        {
+            let (_, is_key, _, _, _) = self.tree.flattened_items[index];
+            if is_key {
+                self.redis_client.del(&path)?;
+                self.message = Some(format!("Deleted key: {}", path));
 
-                    // Helper functionality to remove key from tree without full scan?
-                    // For now, full rebuild is safer and easier.
-                    if let Some(pos) = self.keys.iter().position(|k| *k == path) {
-                        self.keys.remove(pos);
-                    }
-                    self.key_types.remove(&path);
-                    self.rebuild_tree();
-
-                    // Reset selection?? Or try to keep index?
-                    // If index exists in new tree, fine.
-                    if index >= self.tree.flattened_items.len() {
-                        self.list_state.select(None);
-                    }
-                    self.loaded_key = None;
-                } else {
-                    self.message = Some("Cannot delete folder yet".to_string());
+                // Helper functionality to remove key from tree without full scan?
+                // For now, full rebuild is safer and easier.
+                if let Some(pos) = self.keys.iter().position(|k| *k == path) {
+                    self.keys.remove(pos);
                 }
+                self.key_types.remove(&path);
+                self.rebuild_tree();
+
+                // Reset selection?? Or try to keep index?
+                // If index exists in new tree, fine.
+                if index >= self.tree.flattened_items.len() {
+                    self.list_state.select(None);
+                }
+                self.loaded_key = None;
+            } else {
+                self.message = Some("Cannot delete folder yet".to_string());
             }
         }
         Ok(())
@@ -902,10 +898,10 @@ impl<R: RedisOps> App<R> {
             return Ok(());
         };
 
-        if let Some((_, is_key, _, _, _)) = self.tree.flattened_items.get(index) {
-            if *is_key {
-                self.fetch_details_for_key(&path)?;
-            }
+        if let Some((_, is_key, _, _, _)) = self.tree.flattened_items.get(index)
+            && *is_key
+        {
+            self.fetch_details_for_key(&path)?;
         }
         Ok(())
     }
