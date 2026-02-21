@@ -1,6 +1,6 @@
 use std::{io, time::Duration};
 
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Direction, Layout},
@@ -68,6 +68,7 @@ impl App {
 fn handle_key_event(arg: &mut App, _terminal: &mut DefaultTerminal) -> Result<(), io::Error> {
     if event::poll(Duration::from_millis(100))?
         && let Event::Key(key) = event::read()?
+        && key.kind == KeyEventKind::Press
     {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => arg.exit = true,

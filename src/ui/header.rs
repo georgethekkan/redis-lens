@@ -18,7 +18,7 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
     frame.render_widget(title, layout[0]);
 
     // Info area (Total keys, etc.)
-    let raw_url = app.redis_client.url();
+    let raw_url = app.client.url();
     let clean_url = raw_url
         .trim_start_matches("redis://")
         .trim_start_matches("rediss://");

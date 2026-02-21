@@ -1,5 +1,5 @@
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -90,6 +90,7 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Resu
         // Exit on 'q' or Esc
         if event::poll(std::time::Duration::from_millis(200))?
             && let Event::Key(key) = event::read()?
+            && key.kind == KeyEventKind::Press
         {
             match key.code {
                 KeyCode::Char('q') | KeyCode::Esc => break,
