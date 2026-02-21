@@ -37,19 +37,18 @@ impl Tree {
 
                 let is_last = i == parts.len() - 1;
 
-                if !current.children.contains_key(*part) {
-                    let node = TreeNode {
+                current = current
+                    .children
+                    .entry(part.to_string())
+                    .or_insert_with(|| TreeNode {
                         name: part.to_string(),
                         full_path: path_acc.clone(),
                         children: BTreeMap::new(),
                         is_expanded: false,
                         is_key: false,
                         key_type: None,
-                    };
-                    current.children.insert(part.to_string(), node);
-                }
+                    });
 
-                current = current.children.get_mut(*part).unwrap();
                 if is_last {
                     current.is_key = true;
                     current.key_type = types.get(key).cloned();

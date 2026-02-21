@@ -1,10 +1,10 @@
-use redis_lens::args::RedisConfig;
+use redis_lens::args::Config;
 use redis_lens::redis::RedisClient;
 use redis_lens::redis::commands::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn get_client() -> RedisClient {
-    let config = RedisConfig {
+    let config = Config {
         url: "127.0.0.1:6379".to_string(),
         db: 15, // Use DB 15 for tests
         username: None,

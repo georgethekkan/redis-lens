@@ -120,7 +120,7 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
                 .iter()
                 .enumerate()
                 .map(|(i, item)| {
-                    Row::new(vec![
+                    Row::new([
                         Cell::from((start_index + i).to_string()).style(THEME.table_index),
                         Cell::from(item.clone()),
                     ])
@@ -128,7 +128,7 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
                 .collect();
 
             let table = Table::new(rows, [Constraint::Length(6), Constraint::Min(0)])
-                .header(Row::new(vec!["Index", "Value"]).style(THEME.table_header))
+                .header(Row::new(["Index", "Value"]).style(THEME.table_header))
                 .row_highlight_style(THEME.key_highlight)
                 .column_spacing(1);
             frame.render_stateful_widget(table, inner_area, &mut app.details_table_state);
@@ -137,7 +137,7 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
             let rows: Vec<Row> = fields
                 .iter()
                 .map(|(field, value)| {
-                    Row::new(vec![
+                    Row::new([
                         Cell::from(field.clone()).style(THEME.table_field),
                         Cell::from(value.clone()),
                     ])
@@ -148,7 +148,7 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
                 rows,
                 [Constraint::Percentage(30), Constraint::Percentage(70)],
             )
-            .header(Row::new(vec!["Field", "Value"]).style(THEME.table_header))
+            .header(Row::new(["Field", "Value"]).style(THEME.table_header))
             .row_highlight_style(THEME.key_highlight)
             .column_spacing(1);
             frame.render_stateful_widget(table, inner_area, &mut app.details_table_state);
@@ -156,11 +156,11 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
         CollectionData::Set(members) => {
             let rows: Vec<Row> = members
                 .iter()
-                .map(|member| Row::new(vec![Cell::from(member.clone())]))
+                .map(|member| Row::new([Cell::from(member.clone())]))
                 .collect();
 
             let table = Table::new(rows, [Constraint::Min(0)])
-                .header(Row::new(vec!["Member"]).style(THEME.table_header))
+                .header(Row::new(["Member"]).style(THEME.table_header))
                 .row_highlight_style(THEME.key_highlight)
                 .column_spacing(1);
             frame.render_stateful_widget(table, inner_area, &mut app.details_table_state);
@@ -169,7 +169,7 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
             let rows: Vec<Row> = items
                 .iter()
                 .map(|(member, score)| {
-                    Row::new(vec![
+                    Row::new([
                         Cell::from(format!("{:.4}", score)).fg(THEME.type_zset),
                         Cell::from(member.clone()),
                     ])
@@ -177,7 +177,7 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
                 .collect();
 
             let table = Table::new(rows, [Constraint::Length(15), Constraint::Min(0)])
-                .header(Row::new(vec!["Score", "Member"]).style(THEME.table_header))
+                .header(Row::new(["Score", "Member"]).style(THEME.table_header))
                 .row_highlight_style(THEME.key_highlight)
                 .column_spacing(1);
             frame.render_stateful_widget(table, inner_area, &mut app.details_table_state);

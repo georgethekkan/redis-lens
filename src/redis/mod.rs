@@ -3,7 +3,7 @@ use r2d2::{Pool, PooledConnection};
 use redis::{Client, Connection};
 use tracing::info;
 
-use crate::args::{self, RedisConfig};
+use crate::args::{self, Config};
 
 pub mod commands;
 
@@ -45,7 +45,7 @@ pub trait RedisOps:
 
 pub struct RedisClient {
     pub url: String,
-    pub config: RedisConfig,
+    pub config: Config,
     pub pool: Pool<RedisConnectionManager>,
 }
 
@@ -68,19 +68,17 @@ impl RedisOps for RedisClient {
 }
 
 impl RedisClient {
-    #[tracing::instrument(skip(cfg))]
-    pub fn new(cfg: &RedisConfig) -> Result<RedisClient> {
+    //#[tracing::instrument(skip(cfg))]
+    pub fn new(cfg: &Config) -> Result<RedisClient> {
         info!("Connecting to Redis at {} using DB {}", cfg.url, cfg.db);
 
         let url = build_redis_url(cfg);
-
         let client = Client::open(url.clone()).context("Failed to connect to Redis")?;
 
         let manager = RedisConnectionManager { client };
-
         let pool = r2d2::Pool::builder().build(manager)?;
-
         info!("Connected to Redis successfully");
+
         Ok(RedisClient {
             url,
             config: cfg.clone(),
@@ -95,7 +93,7 @@ impl RedisClient {
     }
 }
 
-fn build_redis_url(cfg: &RedisConfig) -> String {
+fn build_redis_url(cfg: &Config) -> String {
     if let Some(username) = &cfg.username {
         if let Some(password) = &cfg.password {
             format!("redis://{}:{}@{}/{}", username, password, cfg.url, cfg.db)
