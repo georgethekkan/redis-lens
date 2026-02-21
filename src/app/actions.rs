@@ -1,4 +1,4 @@
-use crate::app::{App, CollectionData, Insert, InsertDataType};
+use crate::app::{App, CollectionData, Editing, Insert, InsertDataType};
 use color_eyre::eyre::Result;
 
 impl<R: crate::redis::RedisOps> App<R> {
@@ -10,7 +10,7 @@ impl<R: crate::redis::RedisOps> App<R> {
     ) -> Result<()> {
         match insert_type {
             InsertDataType::String => {
-                self.redis_client.set(&key, &value)?;
+                self.client.set(&key, &value)?;
             }
             InsertDataType::Hash => {
                 // Expect "field:value"
@@ -18,13 +18,13 @@ impl<R: crate::redis::RedisOps> App<R> {
                     self.message = Some("Format for Hash: field:value".to_string());
                     return Ok(());
                 };
-                self.redis_client.hset(&key, field, val)?;
+                self.client.hset(&key, field, val)?;
             }
             InsertDataType::List => {
-                self.redis_client.rpush(&key, &value)?;
+                self.client.rpush(&key, &value)?;
             }
             InsertDataType::Set => {
-                self.redis_client.sadd(&key, &value)?;
+                self.client.sadd(&key, &value)?;
             }
             InsertDataType::Zset => {
                 // Expect "score:member"
@@ -38,7 +38,7 @@ impl<R: crate::redis::RedisOps> App<R> {
                     return Ok(());
                 };
 
-                self.redis_client.zadd(&key, score, member)?;
+                self.client.zadd(&key, score, member)?;
             }
             _ => {}
         }
@@ -61,7 +61,7 @@ impl<R: crate::redis::RedisOps> App<R> {
             return Ok(());
         }
 
-        self.redis_client.del(&path)?;
+        self.client.del(&path)?;
         self.message = Some(format!("Deleted key: {}", path));
 
         // Helper functionality to remove key from tree without full scan?
@@ -94,22 +94,22 @@ impl<R: crate::redis::RedisOps> App<R> {
         match &loaded.content {
             CollectionData::Hash(fields) => {
                 if let Some((field, _)) = fields.get(index) {
-                    self.redis_client.hdel(&key, field)?;
+                    self.client.hdel(&key, field)?;
                 }
             }
             CollectionData::List(items) => {
                 if let Some(value) = items.get(index) {
-                    self.redis_client.lrem(&key, 1, value)?;
+                    self.client.lrem(&key, 1, value)?;
                 }
             }
             CollectionData::Set(members) => {
                 if let Some(member) = members.get(index) {
-                    self.redis_client.srem(&key, member)?;
+                    self.client.srem(&key, member)?;
                 }
             }
             CollectionData::ZSet(items) => {
                 if let Some((member, _)) = items.get(index) {
-                    self.redis_client.zrem(&key, member)?;
+                    self.client.zrem(&key, member)?;
                 }
             }
             _ => return Ok(()),
@@ -135,9 +135,7 @@ impl<R: crate::redis::RedisOps> App<R> {
         };
         match &loaded.content {
             CollectionData::String(val, _) => {
-                self.is_editing = true;
-                self.edit_buffer = val.clone();
-                self.original_value = val.clone();
+                self.editing = Some(Editing::new(val.clone(), val.clone()));
             }
             CollectionData::Hash(fields) => {
                 let Some(index) = self.details_table_state.selected() else {
@@ -146,18 +144,14 @@ impl<R: crate::redis::RedisOps> App<R> {
                 let Some((_, val)) = fields.get(index) else {
                     return;
                 };
-                self.is_editing = true;
-                self.edit_buffer = val.clone();
-                self.original_value = val.clone();
+                self.editing = Some(Editing::new(val.clone(), val.clone()));
             }
             CollectionData::List(items) => {
                 let Some(index) = self.details_table_state.selected() else {
                     return;
                 };
                 let Some(val) = items.get(index) else { return };
-                self.is_editing = true;
-                self.edit_buffer = val.clone();
-                self.original_value = val.clone();
+                self.editing = Some(Editing::new(val.clone(), val.clone()));
             }
             CollectionData::Set(members) => {
                 let Some(index) = self.details_table_state.selected() else {
@@ -166,9 +160,7 @@ impl<R: crate::redis::RedisOps> App<R> {
                 let Some(val) = members.get(index) else {
                     return;
                 };
-                self.is_editing = true;
-                self.edit_buffer = val.clone();
-                self.original_value = val.clone();
+                self.editing = Some(Editing::new(val.clone(), val.clone()));
             }
             CollectionData::ZSet(items) => {
                 let Some(index) = self.details_table_state.selected() else {
@@ -177,9 +169,7 @@ impl<R: crate::redis::RedisOps> App<R> {
                 let Some((val, _)) = items.get(index) else {
                     return;
                 };
-                self.is_editing = true;
-                self.edit_buffer = val.clone();
-                self.original_value = val.clone();
+                self.editing = Some(Editing::new(val.clone(), val.clone()));
             }
             _ => {
                 self.message = Some("Editing not supported for this type yet".to_string());
@@ -189,16 +179,20 @@ impl<R: crate::redis::RedisOps> App<R> {
 
     pub fn save_edit(&mut self) -> Result<()> {
         let Some(loaded) = &self.loaded_key else {
-            self.is_editing = false;
+            self.editing = None;
+            return Ok(());
+        };
+
+        let Some(e) = &self.editing else {
             return Ok(());
         };
 
         let key = loaded.key.clone();
-        let new_value = self.edit_buffer.clone();
+        let new_value = e.edit_buffer.clone();
 
         match &loaded.content {
             CollectionData::String(_, _) => {
-                self.redis_client.set(&key, &new_value)?;
+                self.client.set(&key, &new_value)?;
                 self.message = Some(format!("Updated string: {}", key));
             }
             CollectionData::Hash(fields) => {
@@ -208,7 +202,7 @@ impl<R: crate::redis::RedisOps> App<R> {
                 let Some((field, _)) = fields.get(index) else {
                     return Ok(());
                 };
-                self.redis_client.hset(&key, field, &new_value)?;
+                self.client.hset(&key, field, &new_value)?;
                 self.message = Some(format!("Updated hash field: {}", field));
             }
             CollectionData::List(_) => {
@@ -216,12 +210,12 @@ impl<R: crate::redis::RedisOps> App<R> {
                     return Ok(());
                 };
                 let list_index = (self.collection_page * self.collection_page_size + index) as i64;
-                self.redis_client.lset(&key, list_index, &new_value)?;
+                self.client.lset(&key, list_index, &new_value)?;
                 self.message = Some(format!("Updated list item at index {}", list_index));
             }
             CollectionData::Set(_) => {
-                self.redis_client.srem(&key, &self.original_value)?;
-                self.redis_client.sadd(&key, &new_value)?;
+                self.client.srem(&key, &e.original_value)?;
+                self.client.sadd(&key, &new_value)?;
                 self.message = Some("Updated set member".to_string());
             }
             CollectionData::ZSet(items) => {
@@ -231,15 +225,14 @@ impl<R: crate::redis::RedisOps> App<R> {
                 let Some((_, score)) = items.get(index) else {
                     return Ok(());
                 };
-                self.redis_client.zrem(&key, &self.original_value)?;
-                self.redis_client.zadd(&key, *score, &new_value)?;
+                self.client.zrem(&key, &e.original_value)?;
+                self.client.zadd(&key, *score, &new_value)?;
                 self.message = Some("Updated sorted set member".to_string());
             }
             _ => {}
         }
 
-        self.is_editing = false;
-        self.edit_buffer.clear();
+        self.editing = None;
         self.fetch_details_for_key(&key)?;
         Ok(())
     }
@@ -258,7 +251,7 @@ impl<R: crate::redis::RedisOps> App<R> {
         self.filter_pattern = pattern;
 
         // Reset keys and performing scan
-        let (next, keys) = self.redis_client.scan("0", &self.filter_pattern, 100)?;
+        let (next, keys) = self.client.scan("0", &self.filter_pattern, 100)?;
         self.next = next;
         self.keys = keys;
 
@@ -274,14 +267,14 @@ impl<R: crate::redis::RedisOps> App<R> {
 
     pub fn confirm_db_selection(&mut self) -> Result<()> {
         let new_db = self.db_cursor as u8;
-        self.redis_client.select_db(new_db)?;
+        self.client.select_db(new_db)?;
         self.is_selecting_db = false;
 
         // Refresh everything
         self.keys.clear();
         self.key_types.clear();
         self.loaded_key = None;
-        let (next, keys) = self.redis_client.scan("0", &self.filter_pattern, 100)?;
+        let (next, keys) = self.client.scan("0", &self.filter_pattern, 100)?;
         self.next = next;
         self.keys = keys;
         self.rebuild_tree();

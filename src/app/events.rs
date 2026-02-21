@@ -24,20 +24,19 @@ impl<R: crate::redis::RedisOps> App<R> {
             return Ok(());
         }
 
-        if self.is_editing {
+        if let Some(e) = &mut self.editing {
             match key.code {
                 KeyCode::Enter => {
                     self.save_edit()?;
                 }
                 KeyCode::Esc => {
-                    self.is_editing = false;
-                    self.edit_buffer.clear();
+                    self.editing = None;
                 }
                 KeyCode::Char(c) => {
-                    self.edit_buffer.push(c);
+                    e.edit_buffer.push(c);
                 }
                 KeyCode::Backspace => {
-                    self.edit_buffer.pop();
+                    e.edit_buffer.pop();
                 }
                 _ => {}
             }
@@ -304,9 +303,7 @@ impl<R: crate::redis::RedisOps> App<R> {
         if self.next == "0" {
             return Ok(());
         }
-        let (new_cursor, new_keys) =
-            self.redis_client
-                .scan(&self.next, &self.filter_pattern, 100)?;
+        let (new_cursor, new_keys) = self.client.scan(&self.next, &self.filter_pattern, 100)?;
         self.next = new_cursor;
         self.keys.extend(new_keys);
         self.message = Some("Loaded next page of keys.".to_string());

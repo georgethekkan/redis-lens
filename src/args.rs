@@ -4,7 +4,7 @@ use color_eyre::eyre::Result;
 #[derive(Debug, Clone, Parser)]
 pub struct Arg {
     #[command(flatten)]
-    pub redis_config: RedisConfig,
+    pub config: Config,
 
     #[command(subcommand)]
     pub cmd: Option<Commands>,
@@ -37,7 +37,7 @@ pub enum Commands {
 }
 
 #[derive(Debug, Clone, Args)]
-pub struct RedisConfig {
+pub struct Config {
     /// Redis server URL
     #[clap(long, default_value = "localhost:6379")]
     pub url: String,

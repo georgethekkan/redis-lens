@@ -54,8 +54,23 @@ pub enum CollectionData {
     None,
 }
 
+#[derive(Debug, Clone)]
+pub struct Editing {
+    pub edit_buffer: String,
+    pub original_value: String,
+}
+
+impl Editing {
+    pub fn new(edit_buffer: String, original_value: String) -> Self {
+        Self {
+            edit_buffer,
+            original_value,
+        }
+    }
+}
+
 pub struct App<R: RedisOps> {
-    pub redis_client: R,
+    pub client: R,
     pub keys: Vec<String>,
     pub key_types: HashMap<String, String>,
     pub list_state: ListState,
@@ -69,12 +84,7 @@ pub struct App<R: RedisOps> {
     pub focus: Focus,
     pub show_help: bool,
 
-    // Editing
-    pub is_editing: bool,
-    pub edit_buffer: String,
-    pub original_value: String,
-
-    // Insertion
+    pub editing: Option<Editing>,
     pub insert: Option<Insert>,
 
     // Search
@@ -97,7 +107,7 @@ pub struct App<R: RedisOps> {
 impl<R: RedisOps> App<R> {
     pub fn new(redis_client: R) -> Result<Self> {
         let mut app = Self {
-            redis_client,
+            client: redis_client,
             keys: Vec::new(),
             key_types: HashMap::new(),
             list_state: ListState::default(),
@@ -110,9 +120,7 @@ impl<R: RedisOps> App<R> {
             loaded_key: None,
             focus: Focus::LeftMenu,
             show_help: false,
-            is_editing: false,
-            edit_buffer: String::new(),
-            original_value: String::new(),
+            editing: None,
             insert: None,
             is_searching: false,
             search_query: String::new(),
@@ -149,7 +157,7 @@ impl<R: RedisOps> App<R> {
     }
 
     pub fn refresh(&mut self) -> Result<()> {
-        let (next, keys) = self.redis_client.scan("0", &self.filter_pattern, 100)?;
+        let (next, keys) = self.client.scan("0", &self.filter_pattern, 100)?;
         self.next = next;
         self.keys = keys;
 
@@ -236,7 +244,7 @@ impl<R: RedisOps> App<R> {
             Some(msg) => msg.clone(),
             None => format!(
                 "{} | r: Refresh | q: Quit | ↑↓: Navigate | d: Delete | n: Next Keys | ←→: Page",
-                self.redis_client.url()
+                self.client.url()
             ),
         }
     }

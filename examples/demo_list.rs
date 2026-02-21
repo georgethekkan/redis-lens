@@ -1,10 +1,10 @@
 use std::io;
 
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     widgets::{Block, Borders, List, ListItem, ListState},
 };
 
@@ -41,7 +41,9 @@ impl App {
         loop {
             terminal.draw(|f| self.draw(f))?;
 
-            if let Event::Key(key) = event::read()? {
+            if let Event::Key(key) = event::read()?
+                && key.kind == KeyEventKind::Press
+            {
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => self.exit = true,
                     KeyCode::Down => self.list_state.select_next(),
@@ -73,12 +75,8 @@ impl App {
 
         let list = List::new(list_items)
             .block(Block::default().borders(Borders::ALL).title("Items"))
-            .highlight_style(
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .highlight_symbol(">> ");
+            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+            .highlight_symbol("⇾ ");
 
         frame.render_stateful_widget(list, left, &mut self.list_state);
 
