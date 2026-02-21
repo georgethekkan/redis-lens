@@ -3,7 +3,7 @@ use r2d2::{Pool, PooledConnection};
 use redis::{Client, Connection};
 use tracing::info;
 
-use crate::args::{self, Config};
+use crate::args::Config;
 
 pub mod commands;
 
@@ -29,7 +29,7 @@ impl r2d2::ManageConnection for RedisConnectionManager {
 }
 
 pub trait RedisOps:
-    commands::KeyCommands
+    commands::KeysCommands
     + commands::StringCommands
     + commands::HashCommands
     + commands::ListCommands

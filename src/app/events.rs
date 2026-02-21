@@ -1,6 +1,6 @@
 use crate::app::{App, Focus, Insert};
 use color_eyre::eyre::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{KeyCode, KeyEvent};
 
 impl<R: crate::redis::RedisOps> App<R> {
     pub fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {

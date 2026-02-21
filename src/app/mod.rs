@@ -4,7 +4,7 @@ pub mod fetch;
 
 use crate::{redis::RedisOps, tree::Tree, ui};
 use color_eyre::eyre::Result;
-use crossterm::event::{self, Event, KeyEvent, KeyEventKind};
+use crossterm::event::{self, Event, KeyEventKind};
 use ratatui::{
     DefaultTerminal,
     widgets::{ListState, TableState},
@@ -250,6 +250,20 @@ impl<R: RedisOps> App<R> {
     }
 
     pub fn update_stats(&mut self) -> Result<()> {
+        if let Ok(info) = self.client.info(Some("memory")) {
+            for line in info.lines() {
+                if line.starts_with("used_memory_human:") {
+                    self.stats.used_memory =
+                        line.trim_start_matches("used_memory_human:").to_string();
+                    break;
+                }
+            }
+        }
+
+        if let Ok(count) = self.client.dbsize() {
+            self.stats.total_keys = count as usize;
+        }
+
         Ok(())
     }
 }

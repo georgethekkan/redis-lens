@@ -1,6 +1,6 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style, Stylize};
+use ratatui::style::{Color, Style, Stylize};
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, Wrap};
 
 use crate::app::{App, CollectionData, LoadedKeyData};
@@ -83,7 +83,7 @@ fn draw_content<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
     let Some(data) = &app.loaded_key else {
         return;
     };
-    let type_color = match data.key_type.as_str() {
+    let _type_color = match data.key_type.as_str() {
         "string" => THEME.type_string,
         "list" => THEME.type_list,
         "hash" => THEME.type_hash,

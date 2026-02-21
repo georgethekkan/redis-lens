@@ -1,93 +1,49 @@
 # Redis Lens - Feature Roadmap
 
-## 🎯 Priority Features (High Impact)
+## 🎯 High Priority (Post 0.1.0)
 
 ### 1. Data Structure Support
-- [x] List support: Browse list elements with pagination
-- [x] Hash support: Display field-value pairs in table format
-- [x] Set support: Show set members with count
-- [x] Sorted Set support: Display members with scores
 - [ ] Stream support: View stream entries with timestamps
+- [ ] JSON pretty-printing for JSON values
 
 ### 2. Search & Filtering
-- [x] Search bar in TUI to filter keys by pattern
 - [ ] Regex pattern matching support
 - [ ] Real-time search results (search as you type)
 - [ ] Persist search filters across navigation
 
-### 3. Value Editor & Data Insertion
-- [x] In-place editing (Strings, Hashes, Lists, Sets, ZSets)
-- [x] Key creation wizard (`i`)
-- [x] Contextual item addition (`a`)
-- [x] Save changes with confirmation popup
-- [ ] JSON pretty-printing for JSON values
-- [ ] Undo last edit
-
-### 4. Database Management
-- [x] Database selector to switch between databases (0-15)
-- [x] Show total key count per database
-- [x] Server info display (memory, CPU, version)
+### 3. Database Management & Monitoring
 - [ ] Key statistics view (keys per type, memory distribution)
+- [ ] Connection status indicator
+- [ ] Real-time monitor for key changes
+- [ ] Performance metrics dashboard
 
-## 🚀 Medium Priority Features
+## 🚀 Medium Priority
 
-### 5. Advanced Operations
+### 4. Advanced Operations
 - [ ] TTL management: Interactive TTL setter
-- [ ] Set key expiration with dialog confirmation
 - [ ] Rename keys in TUI
 - [ ] Multi-select keys for bulk operations
 - [ ] FLUSHDB with safety confirmation
 - [ ] Copy key/value to clipboard
 
-### 6. Navigation & UX Improvements
-- [x] Keyboard shortcuts help modal (h or ?)
-- [x] Tab navigation between panes
-- [x] Better pagination UI
+### 5. Navigation & UX Improvements
 - [ ] Sort keys by: name, TTL, type, memory usage
-- [x] Light/dark theme support (Theme infrastructure implemented)
-- [x] Color code keys by type
+- [ ] Horizontal scrolling for long values
+- [ ] Custom themes support
 
-### 7. Performance Features
+### 6. Performance
 - [ ] Async loading for large key scans
-- [ ] Connection status indicator
-- [x] Manual & Auto-refresh options
-- [x] Show key size in bytes
 - [ ] Display operation timings
 
-## 💾 Lower Priority Features
+## 💾 Lower Priority
 
-### 8. Persistence & Export
-- [ ] Export selected keys to JSON
-- [ ] Export as Redis commands
-- [ ] Import keys from file
-- [ ] Bulk editor for raw data files
-
-### 9. Monitoring & Debugging
-- [ ] Real-time monitor for key changes
-- [ ] Key access log/history
-- [ ] Performance metrics dashboard
-- [ ] Improved error messages with context
-
-### 10. Configuration
+### 7. Persistence & Configuration
+- [ ] Export selected keys to JSON/Redis commands
 - [ ] Config file support (~/.redis-lens.toml)
 - [ ] Save recent connections
-- [ ] User preferences (default DB, theme, page size)
-- [ ] Customizable color schemes
 
 ## 🛠️ Code Quality
-
 - [ ] Add unit tests for RedisClient
-- [x] Refactor redis.rs into redis/mod.rs with subtypes
 - [ ] Extend mock client with realistic test data
 - [ ] Add debug logging mode
 - [ ] Improve error context messages
-- [x] Update README with usage examples, shortcuts, and credits
-
-## ✅ Quick Wins (Easy to Implement First)
-- [x] Display key count
-- [ ] Add Ctrl+f for search
-- [x] Show key size in bytes
-- [x] Color code keys by type
-- [ ] Horizontal scrolling for long values
-- [x] Display selected key name in details panel
-- [x] Collection item deletion

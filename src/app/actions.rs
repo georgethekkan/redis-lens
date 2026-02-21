@@ -1,4 +1,4 @@
-use crate::app::{App, CollectionData, Editing, Insert, InsertDataType};
+use crate::app::{App, CollectionData, Editing, InsertDataType};
 use color_eyre::eyre::Result;
 
 impl<R: crate::redis::RedisOps> App<R> {

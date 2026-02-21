@@ -63,7 +63,7 @@ impl From<&str> for InsertDataType {
             "hash" => InsertDataType::Hash,
             "list" => InsertDataType::List,
             "set" => InsertDataType::Set,
-            "zet" => InsertDataType::Zset,
+            "zset" => InsertDataType::Zset,
             _ => InsertDataType::None,
         }
     }

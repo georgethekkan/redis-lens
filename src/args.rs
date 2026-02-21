@@ -1,5 +1,4 @@
 use clap::{Args, Parser, Subcommand};
-use color_eyre::eyre::Result;
 
 #[derive(Debug, Clone, Parser)]
 pub struct Arg {

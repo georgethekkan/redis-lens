@@ -1,7 +1,7 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Table, Widget};
+use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 
 use crate::app::App;
 use crate::redis::RedisOps;

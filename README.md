@@ -7,13 +7,13 @@
 ## ✨ Features
 
 - **🌳 Interactive Key Tree**: Navigate your Redis database using a smart folder-based tree view. Automatically groups keys using common delimiters.
-- **🔍 Powerful Search & Filter**: Instant key filtering with support for Redis glob patterns.
-- **📝 In-place Value Editing**: Modify Strings, Hashes, Lists, Sets, and Sorted Sets directly within the TUI.
+- **🔍 Powerful Search & Filter**: Instant key filtering with support for Redis glob patterns (`/`).
+- **📝 In-place Value Editing**: Modify Strings, Hashes, Lists, Sets, and Sorted Sets directly within the TUI (`e`).
 - **✨ Data Insertion**: Create new keys (`i`) or add items to existing collections (`a`) with intuitive multi-step dialogs.
 - **📊 Live Server Metrics**: Real-time monitoring of **Memory Usage**, **CPU Load**, and **Key Counts** in a premium header dashboard.
-- **🎯 Dual-Pane Navigation**: Seamlessly switch focus between your key hierarchy and data details with intuitive visual cues.
+- **🎯 Dual-Pane Navigation**: Seamlessly switch focus between your key hierarchy and data details (`Tab`) with intuitive visual cues.
 - **🎨 Color-Coded Types**: Distinctive visual styles for every Redis data type (Strings, Hashes, Lists, etc.) for instant recognition.
-- **⚡ Performance First**: Efficient type caching and cursor-based scanning to handle large databases without freezing the UI.
+- **⚡ Performance First**: Efficient type-aware pagination (50 items per page) and cursor-based scanning to handle large databases.
 
 ## ⌨️ Keyboard Shortcuts
 
@@ -25,11 +25,13 @@
 | `←` / `→` | Collapse/Expand Folders or Page through Collections |
 | `r` | **Refresh** stats, keys, and current data |
 | `i` | **Insert** new key (Step-by-step) |
-| `a` | **Add** item to current collection |
-| `e` | **Edit** current value (Strings/Hashes/Lists/Sets) |
+| `a` | **Add** item to current collection (at end/start) |
+| `e` | **Edit** current value (In-place) |
 | `d` | **Delete** selected key or collection item |
+| `b` | **Database** selector (0-15) |
 | `/` | Open **Search** pattern popup |
 | `n` | Load next page of keys |
+| `h` / `?` | Open keyboard shortcuts help modal |
 | `Esc` | Cancel / Close popup |
 | `q` | Quit application |
 
@@ -60,7 +62,7 @@ redis-lens --url redis://127.0.0.1:6379/0
 
 ## 🛠️ Configuration
 You can pass the connection URL via command-line arguments:
-- `--url <URL>`: Redis connection string (e.g., `redis://user:password@host:port/db`)
+- `--url <URL>`: Redis connection string (e.g., `redis://username:password@host:port/db`)
 
 ## 🤝 Credits & Inspiration
 

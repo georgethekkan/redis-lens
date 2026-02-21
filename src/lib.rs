@@ -1,11 +1,11 @@
-#![allow(unused)]
+//#![allow(unused)]
 use std::io::stdout;
 
-use color_eyre::Result;
-use color_eyre::eyre::{Context, bail};
-use crossterm::ExecutableCommand;
-
-use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
+use color_eyre::eyre::{Context, Result};
+use crossterm::{
+    ExecutableCommand,
+    event::{DisableMouseCapture, EnableMouseCapture},
+};
 
 use crate::app::App;
 use crate::redis::RedisClient;
@@ -56,7 +56,7 @@ pub fn set(key: &str, value: &str, redis_client: &RedisClient) -> Result<()> {
 }
 
 pub fn scan(pattern: &str, redis_client: &RedisClient) -> Result<()> {
-    let (next, keys) = redis_client.scan("0", "*", 100)?;
+    let (next, keys) = redis_client.scan("0", pattern, 100)?;
 
     println!("Found {} keys (first page): {:?}", keys.len(), keys);
     if next != "0" {

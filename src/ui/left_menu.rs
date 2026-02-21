@@ -1,7 +1,6 @@
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Table, Widget};
+use ratatui::layout::Rect;
+use ratatui::widgets::{Block, Borders, List, ListItem};
 
 use crate::app::App;
 use crate::redis::RedisOps;
@@ -13,7 +12,7 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, left: Rect) {
         .tree
         .flattened_items
         .iter()
-        .map(|(name, is_key, depth, is_expanded, key_type)| {
+        .map(|(name, is_key, depth, is_expanded, _key_type)| {
             let indent = "  ".repeat(*depth);
             let symbol = if *is_key {
                 "•"
