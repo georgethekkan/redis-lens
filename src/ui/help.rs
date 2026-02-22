@@ -1,12 +1,12 @@
 use crate::app::App;
-use crate::redis::RedisOps;
+use crate::redis::ClientOps;
 use crate::ui::theme::THEME;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
-pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
+pub fn draw<R: ClientOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
     let help_line = Line::from(vec![
         Span::styled("?", THEME.help_key),
         Span::styled(" Help ", THEME.help_desc),

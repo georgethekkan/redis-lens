@@ -1,7 +1,7 @@
 use color_eyre::eyre::{Context, Result};
 use redis::Commands;
 
-use crate::redis::RedisClient;
+use crate::redis::LensClient;
 
 pub trait SortedSetCommands {
     fn zcard(&self, key: &str) -> Result<i64>;
@@ -11,7 +11,7 @@ pub trait SortedSetCommands {
     fn zrem(&self, key: &str, member: &str) -> Result<()>;
 }
 
-impl SortedSetCommands for RedisClient {
+impl SortedSetCommands for LensClient {
     fn zcard(&self, key: &str) -> Result<i64> {
         let mut con = self.get_connection()?;
         let count: i64 = con

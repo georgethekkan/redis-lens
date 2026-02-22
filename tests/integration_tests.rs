@@ -1,16 +1,17 @@
 use redis_lens::args::Config;
-use redis_lens::redis::RedisClient;
+use redis_lens::redis::LensClient;
 use redis_lens::redis::commands::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn get_client() -> RedisClient {
+fn get_client() -> LensClient {
     let config = Config {
         url: "127.0.0.1:6379".to_string(),
         db: 15, // Use DB 15 for tests
         username: None,
         password: None,
+        mock: false,
     };
-    RedisClient::new(&config).expect("Failed to connect to Redis")
+    LensClient::new(&config).expect("Failed to connect to Redis")
 }
 
 fn get_random_key(prefix: &str) -> String {
@@ -155,11 +156,11 @@ fn test_pagination() {
     let pattern = format!("{}*", prefix);
 
     loop {
-        let (next, keys) = client.scan(&cursor, &pattern, 10).expect("Scan failed");
-        for k in keys {
+        let res = client.scan(&cursor, &pattern, 10).expect("Scan failed");
+        for k in res.keys {
             collected_keys.insert(k);
         }
-        cursor = next;
+        cursor = res.next;
         if cursor == "0" {
             break;
         }
@@ -252,10 +253,10 @@ fn test_delete_all() {
     }
 
     // Verify they exist
-    let (_, keys) = client
+    let res = client
         .scan("0", &format!("{}*", prefix), 100)
         .expect("Scan failed");
-    assert_eq!(keys.len(), total_keys);
+    assert_eq!(res.keys.len(), total_keys);
 
     // Delete all
     let deleted_count = client
@@ -264,8 +265,8 @@ fn test_delete_all() {
     assert_eq!(deleted_count, total_keys);
 
     // Verify gone
-    let (_, keys_after) = client
+    let res = client
         .scan("0", &format!("{}*", prefix), 100)
         .expect("Scan failed");
-    assert_eq!(keys_after.len(), 0);
+    assert_eq!(res.keys.len(), 0);
 }

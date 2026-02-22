@@ -1,11 +1,11 @@
 use crate::app::App;
-use crate::redis::RedisOps;
+use crate::redis::ClientOps;
 use crate::ui::theme::THEME;
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::widgets::{Block, Borders, Clear, Row, Table};
 
-pub fn draw<R: RedisOps>(frame: &mut Frame, _app: &mut App<R>, area: Rect) {
+pub fn draw<R: ClientOps>(frame: &mut Frame, _app: &mut App<R>, area: Rect) {
     let block = Block::default()
         .title(" Keyboard Shortcuts ")
         .title_style(THEME.block_title)

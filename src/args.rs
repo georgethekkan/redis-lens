@@ -52,6 +52,10 @@ pub struct Config {
     /// Database to use
     #[clap(long, default_value = "0")]
     pub db: u8,
+
+    /// Use a mock Redis for testing/dry run
+    #[clap(long)]
+    pub mock: bool,
 }
 
 #[derive(Debug, Clone, Args)]

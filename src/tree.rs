@@ -35,8 +35,6 @@ impl Tree {
                 }
                 path_acc.push_str(part);
 
-                let is_last = i == parts.len() - 1;
-
                 current = current
                     .children
                     .entry(part.to_string())
@@ -48,6 +46,8 @@ impl Tree {
                         is_key: false,
                         key_type: None,
                     });
+
+                let is_last = i == parts.len() - 1;
 
                 if is_last {
                     current.is_key = true;

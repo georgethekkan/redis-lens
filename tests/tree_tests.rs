@@ -7,6 +7,8 @@ fn test_tree_rebuild_simple() {
     let keys = vec!["a:b:c".to_string(), "a:b:d".to_string(), "x:y".to_string()];
     tree.rebuild(&keys, &BTreeMap::new());
 
+    dbg!(&tree);
+
     assert_eq!(tree.root.children.len(), 2);
     assert!(tree.root.children.contains_key("a"));
     assert!(tree.root.children.contains_key("x"));

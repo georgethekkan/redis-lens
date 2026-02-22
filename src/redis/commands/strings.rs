@@ -1,7 +1,7 @@
 use color_eyre::eyre::{Context, Result};
 use redis::Commands;
 
-use crate::redis::RedisClient;
+use crate::redis::LensClient;
 
 pub trait StringCommands {
     fn get(&self, key: &str) -> Result<String>;
@@ -9,7 +9,7 @@ pub trait StringCommands {
     fn strlen(&self, key: &str) -> Result<i64>;
 }
 
-impl StringCommands for RedisClient {
+impl StringCommands for LensClient {
     fn get(&self, key: &str) -> Result<String> {
         let mut con = self.get_connection()?;
         let value: String = con.get(key).context("Failed to get key from Redis")?;

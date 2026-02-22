@@ -4,10 +4,10 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::app::App;
-use crate::redis::RedisOps;
+use crate::redis::ClientOps;
 use crate::ui::theme::THEME;
 
-pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
+pub fn draw<R: ClientOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
     let layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Length(15), Constraint::Min(0)])
