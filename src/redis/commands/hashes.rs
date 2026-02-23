@@ -1,7 +1,7 @@
 use color_eyre::eyre::{Context, Result};
 use redis::Commands;
 
-use crate::redis::RedisClient;
+use crate::redis::LensClient;
 
 pub trait HashCommands {
     fn hlen(&self, key: &str) -> Result<i64>;
@@ -16,7 +16,7 @@ pub trait HashCommands {
     fn hdel(&self, key: &str, field: &str) -> Result<()>;
 }
 
-impl HashCommands for RedisClient {
+impl HashCommands for LensClient {
     fn hlen(&self, key: &str) -> Result<i64> {
         let mut con = self.get_connection()?;
         let len: i64 = con.hlen(key).context("Failed to get hash length")?;

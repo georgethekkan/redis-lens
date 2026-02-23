@@ -8,7 +8,7 @@ use crossterm::{
 };
 
 use crate::app::App;
-use crate::redis::RedisClient;
+use crate::redis::ClientOps;
 use crate::redis::commands::*;
 
 pub mod app;
@@ -17,18 +17,18 @@ pub mod redis;
 pub mod tree;
 pub mod ui;
 
-pub fn start_ui(redis_client: RedisClient) -> Result<()> {
+pub fn start_ui<R: ClientOps + 'static>(client: R) -> Result<()> {
     stdout().execute(EnableMouseCapture)?;
     let mut terminal = ratatui::init();
-    App::new(redis_client)?.run(&mut terminal)?;
+    App::new(client)?.run(&mut terminal)?;
     ratatui::restore();
     stdout().execute(DisableMouseCapture)?;
     Ok(())
 }
 
-pub fn delete_keys(pattern: &str, redis_client: &RedisClient) -> Result<()> {
+pub fn delete_keys<R: ClientOps>(pattern: &str, client: &R) -> Result<()> {
     println!("Deleting keys matching pattern: {}", pattern);
-    let count = redis_client.delete_all(pattern)?;
+    let count = client.delete_all(pattern)?;
     if count == 0 {
         println!("No keys found matching pattern: {}", pattern);
     } else {
@@ -37,26 +37,24 @@ pub fn delete_keys(pattern: &str, redis_client: &RedisClient) -> Result<()> {
     Ok(())
 }
 
-pub fn get(key: &str, redis_client: &RedisClient) -> Result<()> {
+pub fn get<R: ClientOps>(key: &str, client: &R) -> Result<()> {
     println!("Fetching key: {}", key);
-    let value: String = redis_client
-        .get(key)
-        .context("Failed to get key from Redis")?;
+    let value: String = client.get(key).context("Failed to get key from Redis")?;
     println!("Value: {}", value);
     Ok(())
 }
 
-pub fn set(key: &str, value: &str, redis_client: &RedisClient) -> Result<()> {
+pub fn set<R: ClientOps>(key: &str, value: &str, client: &R) -> Result<()> {
     println!("Setting key: {} to value: {}", key, value);
-    redis_client
+    client
         .set(key, value)
         .context("Failed to set key in Redis")?;
     println!("Key set successfully.");
     Ok(())
 }
 
-pub fn scan(pattern: &str, redis_client: &RedisClient) -> Result<()> {
-    let (next, keys) = redis_client.scan("0", pattern, 100)?;
+pub fn scan<R: ClientOps>(pattern: &str, client: &R) -> Result<()> {
+    let ScanResponse { next, keys } = client.scan("0", pattern, 100)?;
 
     println!("Found {} keys (first page): {:?}", keys.len(), keys);
     if next != "0" {

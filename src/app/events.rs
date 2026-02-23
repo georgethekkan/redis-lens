@@ -1,8 +1,11 @@
-use crate::app::{App, Focus, Insert};
+use crate::{
+    app::{App, Focus, Insert},
+    redis::datatype::DataType,
+};
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
-impl<R: crate::redis::RedisOps> App<R> {
+impl<R: crate::redis::ClientOps> App<R> {
     pub fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
         if self.is_searching {
             match key.code {
@@ -33,10 +36,10 @@ impl<R: crate::redis::RedisOps> App<R> {
                     self.editing = None;
                 }
                 KeyCode::Char(c) => {
-                    e.edit_buffer.push(c);
+                    e.buffer.push(c);
                 }
                 KeyCode::Backspace => {
-                    e.edit_buffer.pop();
+                    e.buffer.pop();
                 }
                 _ => {}
             }
@@ -49,7 +52,7 @@ impl<R: crate::redis::RedisOps> App<R> {
                 crate::app::insert::InsertKeyEvent::Noop => {}
                 crate::app::insert::InsertKeyEvent::PerformInsert => {
                     let ins = ins.clone();
-                    self.perform_insertion(ins.name, ins.value, ins.insert_type)?;
+                    self.perform_insertion(ins.name, ins.value, ins.data_type)?;
                     self.insert = None;
                 }
                 crate::app::insert::InsertKeyEvent::NotInserting => self.insert = None,
@@ -85,12 +88,12 @@ impl<R: crate::redis::RedisOps> App<R> {
                 let Some(loaded) = &self.loaded_key else {
                     return Ok(());
                 };
-                let key_type = loaded.key_type.clone();
-                if key_type != "string" {
+                let data_type = loaded.data_type.clone();
+                if data_type != DataType::String {
                     let insert = Insert {
                         step: 2, // Skip name/type, go straight to value
                         name: loaded.key.clone(),
-                        insert_type: key_type.as_str().into(),
+                        data_type: data_type.as_str().into(),
                         value: String::new(),
                     };
                     self.insert = Some(insert);
@@ -303,9 +306,9 @@ impl<R: crate::redis::RedisOps> App<R> {
         if self.next == "0" {
             return Ok(());
         }
-        let (new_cursor, new_keys) = self.client.scan(&self.next, &self.filter_pattern, 100)?;
-        self.next = new_cursor;
-        self.keys.extend(new_keys);
+        let resp = self.client.scan(&self.next, &self.filter_pattern, 100)?;
+        self.next = resp.next;
+        self.keys.extend(resp.keys);
         self.message = Some("Loaded next page of keys.".to_string());
         self.rebuild_tree();
         Ok(())

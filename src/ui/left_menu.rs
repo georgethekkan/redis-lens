@@ -3,10 +3,10 @@ use ratatui::layout::Rect;
 use ratatui::widgets::{Block, Borders, List, ListItem};
 
 use crate::app::App;
-use crate::redis::RedisOps;
+use crate::redis::ClientOps;
 use crate::ui::theme::THEME;
 
-pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, left: Rect) {
+pub fn draw<R: ClientOps>(frame: &mut Frame, app: &mut App<R>, left: Rect) {
     // Left panel: key tree
     let list_items: Vec<ListItem> = app
         .tree

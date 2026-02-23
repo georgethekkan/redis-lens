@@ -1,24 +1,27 @@
 pub mod actions;
 pub mod events;
 pub mod fetch;
+pub mod insert;
 
-use crate::{redis::RedisOps, tree::Tree, ui};
+use crate::{
+    redis::{ClientOps, datatype::DataType},
+    tree::Tree,
+    ui,
+};
 use color_eyre::eyre::Result;
 use crossterm::event::{self, Event, KeyEventKind};
+pub use insert::Insert;
 use ratatui::{
     DefaultTerminal,
     widgets::{ListState, TableState},
 };
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Focus {
     LeftMenu,
     Details,
 }
-
-pub mod insert;
-pub use insert::{Insert, InsertDataType};
 
 #[derive(Debug, Default, Clone)]
 pub struct AppStats {
@@ -38,7 +41,7 @@ impl AppStats {
 #[derive(Debug, Clone)]
 pub struct LoadedKeyData {
     pub key: String,
-    pub key_type: String,
+    pub data_type: DataType,
     pub ttl: String,
     pub length: i64,
     pub content: CollectionData,
@@ -56,20 +59,17 @@ pub enum CollectionData {
 
 #[derive(Debug, Clone)]
 pub struct Editing {
-    pub edit_buffer: String,
-    pub original_value: String,
+    pub buffer: String,
+    pub original: String,
 }
 
 impl Editing {
-    pub fn new(edit_buffer: String, original_value: String) -> Self {
-        Self {
-            edit_buffer,
-            original_value,
-        }
+    pub fn new(buffer: String, original: String) -> Self {
+        Self { buffer, original }
     }
 }
 
-pub struct App<R: RedisOps> {
+pub struct App<R: ClientOps> {
     pub client: R,
     pub keys: Vec<String>,
     pub key_types: HashMap<String, String>,
@@ -104,7 +104,7 @@ pub struct App<R: RedisOps> {
     pub tree: Tree,
 }
 
-impl<R: RedisOps> App<R> {
+impl<R: ClientOps> App<R> {
     pub fn new(redis_client: R) -> Result<Self> {
         let mut app = Self {
             client: redis_client,
@@ -157,9 +157,9 @@ impl<R: RedisOps> App<R> {
     }
 
     pub fn refresh(&mut self) -> Result<()> {
-        let (next, keys) = self.client.scan("0", &self.filter_pattern, 100)?;
-        self.next = next;
-        self.keys = keys;
+        let resp = self.client.scan("0", &self.filter_pattern, 100)?;
+        self.next = resp.next;
+        self.keys = resp.keys;
 
         self.rebuild_tree();
 
@@ -176,7 +176,7 @@ impl<R: RedisOps> App<R> {
     pub fn rebuild_tree(&mut self) {
         // For now, Tree::rebuild needs types. We can pass an empty BTreeMap if we don't care about types in the tree view for now,
         // or convert App's key_types.
-        let types: std::collections::BTreeMap<String, String> = self
+        let types: BTreeMap<String, String> = self
             .key_types
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))

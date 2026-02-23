@@ -1,15 +1,23 @@
-use crate::app::{App, CollectionData, LoadedKeyData};
+use crate::{
+    app::{App, CollectionData, LoadedKeyData},
+    redis::datatype::DataType,
+};
 use color_eyre::eyre::Result;
+use tracing::warn;
 
-impl<R: crate::redis::RedisOps> App<R> {
+impl<R: crate::redis::ClientOps> App<R> {
     pub fn fetch_details_for_key(&mut self, key: &str) -> Result<()> {
         let key = key.to_string();
 
         // 1. Get Type
-        let key_type = self
-            .client
-            .key_type(&key)
-            .unwrap_or_else(|e| format!("Error - {}", e));
+        let data_type = self.client.data_type(&key);
+        let data_type = match data_type {
+            Err(e) => {
+                warn!("Error getting type {}", e);
+                DataType::None
+            }
+            Ok(dt) => dt.as_str().into(),
+        };
 
         // 2. Get TTL
         let ttl_info = match self.client.ttl(&key) {
@@ -20,18 +28,18 @@ impl<R: crate::redis::RedisOps> App<R> {
         };
 
         // 3. Get Content & Length based on type
-        let (length, content) = match key_type.as_str() {
-            "string" => self.fetch_string_content(&key),
-            "list" => self.fetch_list_content(&key),
-            "hash" => self.fetch_hash_content(&key),
-            "set" => self.fetch_set_content(&key),
-            "zset" => self.fetch_zset_content(&key),
+        let (length, content) = match &data_type {
+            DataType::String => self.fetch_string_content(&key),
+            DataType::List => self.fetch_list_content(&key),
+            DataType::Hash => self.fetch_hash_content(&key),
+            DataType::Set => self.fetch_set_content(&key),
+            DataType::Zset => self.fetch_zset_content(&key),
             _ => (0, CollectionData::None),
         };
 
         self.loaded_key = Some(LoadedKeyData {
             key,
-            key_type,
+            data_type,
             ttl: ttl_info,
             length,
             content,
@@ -89,8 +97,10 @@ impl<R: crate::redis::RedisOps> App<R> {
 
     pub fn next_collection_page(&mut self) {
         let should_advance = if let Some(data) = &self.loaded_key {
-            match data.key_type.as_str() {
-                "hash" | "set" => self.collection_cursors.len() > self.collection_page + 1,
+            match data.data_type {
+                DataType::Hash | DataType::Set => {
+                    self.collection_cursors.len() > self.collection_page + 1
+                }
                 _ => true,
             }
         } else {

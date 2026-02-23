@@ -4,10 +4,10 @@ use ratatui::style::{Color, Style, Stylize};
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, Wrap};
 
 use crate::app::{App, CollectionData, LoadedKeyData};
-use crate::redis::RedisOps;
+use crate::redis::ClientOps;
 use crate::ui::theme::THEME;
 
-pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
+pub fn draw<R: ClientOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
     // Check if we have a loaded key
     let Some(data) = &app.loaded_key else {
         let block = Block::default()
@@ -63,7 +63,7 @@ fn draw_metadata(frame: &mut Frame, data: &LoadedKeyData, area: Rect) {
     // Row 2: Type & Length
     let type_text = format!(
         " Type: {} | Length: {}",
-        data.key_type.to_uppercase(),
+        data.data_type.as_str(),
         data.length
     );
     frame.render_widget(
@@ -79,11 +79,11 @@ fn draw_metadata(frame: &mut Frame, data: &LoadedKeyData, area: Rect) {
     );
 }
 
-fn draw_content<R: RedisOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
+fn draw_content<R: ClientOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
     let Some(data) = &app.loaded_key else {
         return;
     };
-    let _type_color = match data.key_type.as_str() {
+    let _type_color = match data.data_type.as_str() {
         "string" => THEME.type_string,
         "list" => THEME.type_list,
         "hash" => THEME.type_hash,

@@ -6,6 +6,10 @@ use tracing::info;
 use crate::args::Config;
 
 pub mod commands;
+pub mod datatype;
+
+pub mod mock;
+pub use mock::MockClient;
 
 pub struct RedisConnectionManager {
     client: Client,
@@ -28,7 +32,7 @@ impl r2d2::ManageConnection for RedisConnectionManager {
     }
 }
 
-pub trait RedisOps:
+pub trait ClientOps:
     commands::KeysCommands
     + commands::StringCommands
     + commands::HashCommands
@@ -43,13 +47,13 @@ pub trait RedisOps:
     fn select_db(&mut self, db: u8) -> Result<()>;
 }
 
-pub struct RedisClient {
+pub struct LensClient {
     pub url: String,
     pub config: Config,
     pub pool: Pool<RedisConnectionManager>,
 }
 
-impl RedisOps for RedisClient {
+impl ClientOps for LensClient {
     fn url(&self) -> String {
         self.url.clone()
     }
@@ -67,9 +71,9 @@ impl RedisOps for RedisClient {
     }
 }
 
-impl RedisClient {
+impl LensClient {
     //#[tracing::instrument(skip(cfg))]
-    pub fn new(cfg: &Config) -> Result<RedisClient> {
+    pub fn new(cfg: &Config) -> Result<LensClient> {
         info!("Connecting to Redis at {} using DB {}", cfg.url, cfg.db);
 
         let url = build_redis_url(cfg);
@@ -79,7 +83,7 @@ impl RedisClient {
         let pool = r2d2::Pool::builder().build(manager)?;
         info!("Connected to Redis successfully");
 
-        Ok(RedisClient {
+        Ok(LensClient {
             url,
             config: cfg.clone(),
             pool,

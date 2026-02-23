@@ -1,18 +1,29 @@
 use color_eyre::eyre::{Context, Result};
 use redis::Commands; // Import redis trait for low-level calls if needed, or just specific methods
 
-use crate::redis::RedisClient;
+use crate::redis::{LensClient, datatype::DataType};
+
+pub struct ScanResponse {
+    pub next: String,
+    pub keys: Vec<String>,
+}
+
+impl ScanResponse {
+    pub fn new(next: String, keys: Vec<String>) -> Self {
+        Self { next, keys }
+    }
+}
 
 pub trait KeysCommands {
-    fn scan(&self, cursor: &str, pattern: &str, count: usize) -> Result<(String, Vec<String>)>;
+    fn scan(&self, cursor: &str, pattern: &str, count: usize) -> Result<ScanResponse>;
     fn del(&self, key: &str) -> Result<i32>;
     fn ttl(&self, key: &str) -> Result<Option<i64>>;
-    fn key_type(&self, key: &str) -> Result<String>;
+    fn data_type(&self, key: &str) -> Result<DataType>;
     fn delete_all(&self, pattern: &str) -> Result<usize>;
 }
 
-impl KeysCommands for RedisClient {
-    fn scan(&self, cursor: &str, pattern: &str, count: usize) -> Result<(String, Vec<String>)> {
+impl KeysCommands for LensClient {
+    fn scan(&self, cursor: &str, pattern: &str, count: usize) -> Result<ScanResponse> {
         let mut con = self.get_connection()?;
         let (next, keys): (String, Vec<String>) = redis::cmd("SCAN")
             .arg(cursor)
@@ -22,7 +33,7 @@ impl KeysCommands for RedisClient {
             .arg(count.to_string())
             .query(&mut con)
             .context("Failed to scan keys from Redis")?;
-        Ok((next, keys))
+        Ok(ScanResponse::new(next, keys))
     }
 
     fn del(&self, key: &str) -> Result<i32> {
@@ -41,26 +52,28 @@ impl KeysCommands for RedisClient {
         }
     }
 
-    fn key_type(&self, key: &str) -> Result<String> {
+    fn data_type(&self, key: &str) -> Result<DataType> {
         let mut con = self.get_connection()?;
         let key_type: String = redis::cmd("TYPE")
             .arg(key)
             .query(&mut *con)
             .context("Failed to get key type from Redis")?;
-        Ok(key_type)
+        Ok(key_type.as_str().into())
     }
 
     fn delete_all(&self, pattern: &str) -> Result<usize> {
         let mut cursor = "0".to_string();
         let mut total_deleted = 0;
         loop {
-            let (next, keys) = self.scan(&cursor, pattern, 100)?;
-            if !keys.is_empty() {
+            let resp = self.scan(&cursor, pattern, 100)?;
+            if !resp.keys.is_empty() {
                 let mut con = self.get_connection()?;
-                let _: () = con.del(&keys).context("Failed to delete batch of keys")?;
-                total_deleted += keys.len();
+                let _: () = con
+                    .del(&resp.keys)
+                    .context("Failed to delete batch of keys")?;
+                total_deleted += resp.keys.len();
             }
-            cursor = next;
+            cursor = resp.next;
             if cursor == "0" {
                 break;
             }
@@ -69,7 +82,7 @@ impl KeysCommands for RedisClient {
     }
 }
 
-impl RedisClient {
+impl LensClient {
     pub fn dbsize(&self) -> Result<u64> {
         let mut con = self.get_connection()?;
         let size: u64 = redis::cmd("DBSIZE")

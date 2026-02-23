@@ -1,18 +1,21 @@
-use crate::app::{App, CollectionData, Editing, InsertDataType};
+use crate::{
+    app::{App, CollectionData, Editing},
+    redis::datatype::DataType,
+};
 use color_eyre::eyre::Result;
 
-impl<R: crate::redis::RedisOps> App<R> {
+impl<R: crate::redis::ClientOps> App<R> {
     pub fn perform_insertion(
         &mut self,
         key: String,
         value: String,
-        insert_type: InsertDataType,
+        data_type: DataType,
     ) -> Result<()> {
-        match insert_type {
-            InsertDataType::String => {
+        match data_type {
+            DataType::String => {
                 self.client.set(&key, &value)?;
             }
-            InsertDataType::Hash => {
+            DataType::Hash => {
                 // Expect "field:value"
                 let Some((field, val)) = value.split_once(':') else {
                     self.message = Some("Format for Hash: field:value".to_string());
@@ -20,13 +23,13 @@ impl<R: crate::redis::RedisOps> App<R> {
                 };
                 self.client.hset(&key, field, val)?;
             }
-            InsertDataType::List => {
+            DataType::List => {
                 self.client.rpush(&key, &value)?;
             }
-            InsertDataType::Set => {
+            DataType::Set => {
                 self.client.sadd(&key, &value)?;
             }
-            InsertDataType::Zset => {
+            DataType::Zset => {
                 // Expect "score:member"
                 let Some((score_str, member)) = value.split_once(':') else {
                     self.message = Some("Format for ZSet: score:member".to_string());
@@ -188,7 +191,7 @@ impl<R: crate::redis::RedisOps> App<R> {
         };
 
         let key = loaded.key.clone();
-        let new_value = e.edit_buffer.clone();
+        let new_value = e.buffer.clone();
 
         match &loaded.content {
             CollectionData::String(_, _) => {
@@ -214,7 +217,7 @@ impl<R: crate::redis::RedisOps> App<R> {
                 self.message = Some(format!("Updated list item at index {}", list_index));
             }
             CollectionData::Set(_) => {
-                self.client.srem(&key, &e.original_value)?;
+                self.client.srem(&key, &e.original)?;
                 self.client.sadd(&key, &new_value)?;
                 self.message = Some("Updated set member".to_string());
             }
@@ -225,7 +228,7 @@ impl<R: crate::redis::RedisOps> App<R> {
                 let Some((_, score)) = items.get(index) else {
                     return Ok(());
                 };
-                self.client.zrem(&key, &e.original_value)?;
+                self.client.zrem(&key, &e.original)?;
                 self.client.zadd(&key, *score, &new_value)?;
                 self.message = Some("Updated sorted set member".to_string());
             }
@@ -251,9 +254,9 @@ impl<R: crate::redis::RedisOps> App<R> {
         self.filter_pattern = pattern;
 
         // Reset keys and performing scan
-        let (next, keys) = self.client.scan("0", &self.filter_pattern, 100)?;
-        self.next = next;
-        self.keys = keys;
+        let resp = self.client.scan("0", &self.filter_pattern, 100)?;
+        self.next = resp.next;
+        self.keys = resp.keys;
 
         // Reset selection and rebuild tree
         self.list_state.select(None);
@@ -274,9 +277,9 @@ impl<R: crate::redis::RedisOps> App<R> {
         self.keys.clear();
         self.key_types.clear();
         self.loaded_key = None;
-        let (next, keys) = self.client.scan("0", &self.filter_pattern, 100)?;
-        self.next = next;
-        self.keys = keys;
+        let resp = self.client.scan("0", &self.filter_pattern, 100)?;
+        self.next = resp.next;
+        self.keys = resp.keys;
         self.rebuild_tree();
         self.update_stats()?;
 

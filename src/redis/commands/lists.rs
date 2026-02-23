@@ -1,7 +1,7 @@
 use color_eyre::eyre::{Context, Result};
 use redis::Commands;
 
-use crate::redis::RedisClient;
+use crate::redis::LensClient;
 
 pub trait ListCommands {
     fn llen(&self, key: &str) -> Result<i64>;
@@ -11,7 +11,7 @@ pub trait ListCommands {
     fn lset(&self, key: &str, index: i64, value: &str) -> Result<()>;
 }
 
-impl ListCommands for RedisClient {
+impl ListCommands for LensClient {
     fn llen(&self, key: &str) -> Result<i64> {
         let mut con = self.get_connection()?;
         let len: i64 = con.llen(key).context("Failed to get list length")?;

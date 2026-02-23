@@ -1,4 +1,4 @@
-use crate::redis::RedisClient;
+use crate::redis::LensClient;
 use color_eyre::eyre::{Context, Result};
 
 pub trait ServerCommands {
@@ -6,7 +6,7 @@ pub trait ServerCommands {
     fn dbsize(&self) -> Result<i64>;
 }
 
-impl ServerCommands for RedisClient {
+impl ServerCommands for LensClient {
     fn info(&self, section: Option<&str>) -> Result<String> {
         let mut con = self.get_connection()?;
         let mut cmd = redis::cmd("INFO");

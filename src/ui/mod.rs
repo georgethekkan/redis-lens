@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 
 use crate::app::App;
-use crate::redis::RedisOps;
+use crate::redis::ClientOps;
 
 mod details;
 mod header;
@@ -15,7 +15,7 @@ pub mod theme;
 
 use theme::THEME;
 
-pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>) {
+pub fn draw<R: ClientOps>(frame: &mut Frame, app: &mut App<R>) {
     // Overall layout: Header, main area, and help area
     let layout = Layout::default()
         .direction(Direction::Vertical)
@@ -60,7 +60,7 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>) {
             .title_style(THEME.block_title)
             .borders(Borders::ALL)
             .border_style(THEME.search_popup);
-        let p = Paragraph::new(e.edit_buffer.as_str())
+        let p = Paragraph::new(e.buffer.as_str())
             .block(block)
             .style(THEME.search_input);
         frame.render_widget(ratatui::widgets::Clear, area); // Clear background
@@ -73,7 +73,7 @@ pub fn draw<R: RedisOps>(frame: &mut Frame, app: &mut App<R>) {
             0 => (" 1/3: Key Name ", ins.name.as_str(), "Enter the key name"),
             1 => (
                 " 2/3: Key Type ",
-                ins.insert_type.as_str(),
+                ins.data_type.as_str(),
                 "(s:string, h:hash, l:list, e:set, z:zset)",
             ),
             2 => (

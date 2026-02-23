@@ -1,7 +1,7 @@
 use color_eyre::eyre::{Context, Result};
 use redis::Commands;
 
-use crate::redis::RedisClient;
+use crate::redis::LensClient;
 
 pub trait SetCommands {
     fn scard(&self, key: &str) -> Result<i64>;
@@ -11,7 +11,7 @@ pub trait SetCommands {
     fn srem(&self, key: &str, member: &str) -> Result<()>;
 }
 
-impl SetCommands for RedisClient {
+impl SetCommands for LensClient {
     fn scard(&self, key: &str) -> Result<i64> {
         let mut con = self.get_connection()?;
         let count: i64 = con.scard(key).context("Failed to get set cardinality")?;
