@@ -1,6 +1,7 @@
 use redis_lens::args::Config;
 use redis_lens::redis::LensClient;
 use redis_lens::redis::commands::*;
+use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn get_client() -> LensClient {
@@ -106,9 +107,9 @@ fn test_sets() {
     assert_eq!(members.len(), 2);
     assert!(members.contains(&"member1".to_string()));
 
-    let (cursor, page) = client.sscan(&key, "0", 10).expect("Failed to sscan");
-    assert_eq!(cursor, "0");
-    assert_eq!(page.len(), 2);
+    let ScanResponse { next, keys } = client.sscan(&key, "0", 10).expect("Failed to sscan");
+    assert_eq!(next, "0");
+    assert_eq!(keys.len(), 2);
 
     client.del(&key).expect("Del failed");
 }
@@ -131,9 +132,9 @@ fn test_sorted_sets() {
     assert_eq!(range[0], ("p1".to_string(), 10.0));
     assert_eq!(range[1], ("p2".to_string(), 20.0));
 
-    let (cursor, page) = client.zscan(&key, "0", 10).expect("Failed to zscan");
-    assert_eq!(cursor, "0");
-    assert_eq!(page.len(), 2);
+    let ScanResponse { next, keys } = client.zscan(&key, "0", 10).expect("Failed to zscan");
+    assert_eq!(next, "0");
+    assert_eq!(keys.len(), 2);
 
     client.del(&key).expect("Del failed");
 }
@@ -152,7 +153,7 @@ fn test_pagination() {
     }
 
     let mut cursor = "0".to_string();
-    let mut collected_keys = std::collections::HashSet::new();
+    let mut collected_keys = HashSet::new();
     let pattern = format!("{}*", prefix);
 
     loop {
@@ -181,10 +182,11 @@ fn test_pagination() {
     }
 
     let mut cursor = "0".to_string();
-    let mut collected_members = std::collections::HashSet::new();
+    let mut collected_members = HashSet::new();
     loop {
-        let (next, members) = client.sscan(&set_key, &cursor, 10).expect("Sscan failed");
-        for m in members {
+        let ScanResponse { next, keys } =
+            client.sscan(&set_key, &cursor, 10).expect("Sscan failed");
+        for m in keys {
             collected_members.insert(m);
         }
         cursor = next;
@@ -203,7 +205,7 @@ fn test_pagination() {
     }
 
     let mut cursor = "0".to_string();
-    let mut collected_fields = std::collections::HashSet::new();
+    let mut collected_fields = HashSet::new();
     loop {
         let (next, items) = client.hscan(&hash_key, &cursor, 10).expect("Hscan failed");
         for (f, _) in items {
@@ -225,10 +227,11 @@ fn test_pagination() {
     }
 
     let mut cursor = "0".to_string();
-    let mut collected_zmembers = std::collections::HashSet::new();
+    let mut collected_zmembers = HashSet::new();
     loop {
-        let (next, items) = client.zscan(&zset_key, &cursor, 10).expect("Zscan failed");
-        for (m, _) in items {
+        let ScanResponse { next, keys } =
+            client.zscan(&zset_key, &cursor, 10).expect("Zscan failed");
+        for (m, _) in keys {
             collected_zmembers.insert(m);
         }
         cursor = next;

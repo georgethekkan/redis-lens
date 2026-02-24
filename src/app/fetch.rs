@@ -1,6 +1,6 @@
 use crate::{
     app::{App, CollectionData, LoadedKeyData},
-    redis::datatype::DataType,
+    redis::{commands::ScanResponse, datatype::DataType},
 };
 use color_eyre::eyre::Result;
 use tracing::warn;
@@ -76,13 +76,13 @@ impl<R: crate::redis::ClientOps> App<R> {
     fn fetch_set_content(&mut self, key: &str) -> (i64, CollectionData) {
         let len = self.client.scard(key).unwrap_or(0);
         let cursor = self.get_current_cursor();
-        let (next_cursor, items) = self
+        let ScanResponse { next, keys } = self
             .client
             .sscan(key, cursor, self.collection_page_size)
-            .unwrap_or(("0".to_string(), vec![]));
+            .unwrap_or(ScanResponse::new("0".to_string(), vec![]));
 
-        self.update_next_cursor(next_cursor);
-        (len, CollectionData::Set(items))
+        self.update_next_cursor(next);
+        (len, CollectionData::Set(keys))
     }
 
     fn fetch_zset_content(&self, key: &str) -> (i64, CollectionData) {

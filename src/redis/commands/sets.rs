@@ -1,12 +1,12 @@
 use color_eyre::eyre::{Context, Result};
 use redis::Commands;
 
-use crate::redis::LensClient;
+use crate::redis::{LensClient, commands::ScanResult};
 
 pub trait SetCommands {
     fn scard(&self, key: &str) -> Result<i64>;
     fn smembers(&self, key: &str) -> Result<Vec<String>>;
-    fn sscan(&self, key: &str, cursor: &str, count: usize) -> Result<(String, Vec<String>)>;
+    fn sscan(&self, key: &str, cursor: &str, count: usize) -> ScanResult<Vec<String>>;
     fn sadd(&self, key: &str, member: &str) -> Result<()>;
     fn srem(&self, key: &str, member: &str) -> Result<()>;
 }
@@ -24,7 +24,7 @@ impl SetCommands for LensClient {
         Ok(members)
     }
 
-    fn sscan(&self, key: &str, cursor: &str, count: usize) -> Result<(String, Vec<String>)> {
+    fn sscan(&self, key: &str, cursor: &str, count: usize) -> ScanResult<Vec<String>> {
         let mut con = self.get_connection()?;
         let res: (String, Vec<String>) = redis::cmd("SSCAN")
             .arg(key)
@@ -33,7 +33,7 @@ impl SetCommands for LensClient {
             .arg(count)
             .query(&mut con)
             .context("Failed to sscan")?;
-        Ok(res)
+        Ok(super::ScanResponse::new(res.0, res.1))
     }
 
     fn sadd(&self, key: &str, member: &str) -> Result<()> {

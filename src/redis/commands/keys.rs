@@ -3,19 +3,21 @@ use redis::Commands; // Import redis trait for low-level calls if needed, or jus
 
 use crate::redis::{LensClient, datatype::DataType};
 
-pub struct ScanResponse {
+pub struct ScanResponse<T> {
     pub next: String,
-    pub keys: Vec<String>,
+    pub keys: T,
 }
 
-impl ScanResponse {
-    pub fn new(next: String, keys: Vec<String>) -> Self {
+pub type ScanResult<T> = Result<ScanResponse<T>>;
+
+impl<T> ScanResponse<T> {
+    pub fn new(next: String, keys: T) -> Self {
         Self { next, keys }
     }
 }
 
 pub trait KeysCommands {
-    fn scan(&self, cursor: &str, pattern: &str, count: usize) -> Result<ScanResponse>;
+    fn scan(&self, cursor: &str, pattern: &str, count: usize) -> ScanResult<Vec<String>>;
     fn del(&self, key: &str) -> Result<i32>;
     fn ttl(&self, key: &str) -> Result<Option<i64>>;
     fn data_type(&self, key: &str) -> Result<DataType>;
@@ -23,7 +25,7 @@ pub trait KeysCommands {
 }
 
 impl KeysCommands for LensClient {
-    fn scan(&self, cursor: &str, pattern: &str, count: usize) -> Result<ScanResponse> {
+    fn scan(&self, cursor: &str, pattern: &str, count: usize) -> ScanResult<Vec<String>> {
         let mut con = self.get_connection()?;
         let (next, keys): (String, Vec<String>) = redis::cmd("SCAN")
             .arg(cursor)
