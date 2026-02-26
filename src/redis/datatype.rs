@@ -32,7 +32,7 @@ impl DataType {
         }
     }
 
-    pub fn from_str(c: &str) -> Self {
+    pub fn new(c: &str) -> Self {
         match c.to_lowercase().as_str() {
             "string" => DataType::String,
             "hash" => DataType::Hash,

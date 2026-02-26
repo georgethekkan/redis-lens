@@ -93,7 +93,7 @@ impl<R: crate::redis::ClientOps> App<R> {
                     let insert = Insert {
                         step: 2, // Skip name/type, go straight to value
                         name: loaded.key.clone(),
-                        data_type: DataType::from_str(data_type.as_str()),
+                        data_type: DataType::new(data_type.as_str()),
                         value: String::new(),
                     };
                     self.insert = Some(insert);
