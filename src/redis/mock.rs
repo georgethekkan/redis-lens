@@ -7,10 +7,10 @@ use std::{
 use color_eyre::eyre::{Ok, Result, bail};
 
 use crate::redis::{
-    ClientOps,
+    ClientOps, ScanResponse, ScanResult,
     commands::{
-        HashCommands, KeysCommands, ListCommands, ScanResponse, ScanResult, ServerCommands,
-        SetCommands, SortedSetCommands, StringCommands,
+        HashCommands, KeysCommands, ListCommands, ServerCommands, SetCommands, SortedSetCommands,
+        StringCommands,
     },
     datatype::DataType,
 };
@@ -27,6 +27,19 @@ pub enum RedisValue {
 #[derive(Default, Debug)]
 pub struct MockClient {
     items: RwLock<HashMap<String, RedisValue>>,
+}
+impl MockClient {
+    pub fn setup_keys(&self) -> Result<()> {
+        // Pre-populate with some sample data for demo
+        self.set("demo:string", "Hello Redis Lens!")?;
+        self.hset("demo:hash", "version", "0.1.0")?;
+        self.hset("demo:hash", "author", "George")?;
+        self.rpush("demo:list", "item 1")?;
+        self.rpush("demo:list", "item 2")?;
+        self.sadd("demo:set", "member A")?;
+        self.sadd("demo:set", "member B")?;
+        Ok(())
+    }
 }
 
 impl ClientOps for MockClient {

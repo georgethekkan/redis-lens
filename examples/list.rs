@@ -1,6 +1,8 @@
 // src/main.rs
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event as CEvent, KeyCode},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event as CEvent, KeyCode, KeyEventKind,
+    },
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -21,7 +23,7 @@ fn main() -> Result<(), io::Error> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let items = (1..=4)
+    let items = (1..=20)
         .map(|i| format!("item {}", i))
         .collect::<Vec<String>>();
 
@@ -65,16 +67,17 @@ fn handle_key_event(state: &mut ListState, items: &[String]) -> Result<bool, io:
     // Input
     if event::poll(Duration::from_millis(100))?
         && let CEvent::Key(key) = event::read()?
+        && key.kind == KeyEventKind::Press
     {
         match key.code {
             KeyCode::Char('q') => return Ok(false),
             KeyCode::Up => {
                 let i = match state.selected() {
                     Some(i) => {
-                        if i == 0 {
-                            items.len().saturating_sub(1)
-                        } else {
+                        if i > 0 {
                             i - 1
+                        } else {
+                            i
                         }
                     }
                     None => 0,
@@ -84,10 +87,10 @@ fn handle_key_event(state: &mut ListState, items: &[String]) -> Result<bool, io:
             KeyCode::Down => {
                 let i = match state.selected() {
                     Some(i) => {
-                        if i >= items.len() - 1 {
-                            0
-                        } else {
+                        if i < items.len() {
                             i + 1
+                        } else {
+                            i
                         }
                     }
                     None => 0,
@@ -131,6 +134,7 @@ fn draw_list(
 
         let list = List::new(list_items)
             .block(Block::default().borders(Borders::ALL).title("Items"))
+            .scroll_padding(5)
             .highlight_style(
                 Style::default()
                     .fg(Color::Yellow)

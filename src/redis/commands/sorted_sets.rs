@@ -1,10 +1,7 @@
 use color_eyre::eyre::{Context, Result};
 use redis::Commands;
 
-use crate::redis::{
-    LensClient,
-    commands::{ScanResponse, ScanResult},
-};
+use crate::redis::{LensClient, ScanResponse, ScanResult};
 
 pub trait SortedSetCommands {
     fn zcard(&self, key: &str) -> Result<i64>;

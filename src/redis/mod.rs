@@ -6,7 +6,8 @@ use tracing::info;
 use crate::args::Config;
 
 pub mod commands;
-pub mod datatype;
+mod datatype;
+pub use datatype::DataType;
 
 pub mod mock;
 pub use mock::MockClient;
@@ -108,5 +109,18 @@ fn build_redis_url(cfg: &Config) -> String {
         format!("redis://:{}@{}/{}", password, cfg.url, cfg.db)
     } else {
         format!("redis://{}/{}", cfg.url, cfg.db)
+    }
+}
+
+pub struct ScanResponse<T> {
+    pub next: String,
+    pub keys: T,
+}
+
+pub type ScanResult<T> = Result<ScanResponse<T>>;
+
+impl<T> ScanResponse<T> {
+    pub fn new(next: String, keys: T) -> Self {
+        Self { next, keys }
     }
 }

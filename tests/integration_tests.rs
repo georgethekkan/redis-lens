@@ -1,5 +1,6 @@
 use redis_lens::args::Config;
 use redis_lens::redis::LensClient;
+use redis_lens::redis::ScanResponse;
 use redis_lens::redis::commands::*;
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};

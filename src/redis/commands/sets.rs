@@ -1,7 +1,7 @@
 use color_eyre::eyre::{Context, Result};
 use redis::Commands;
 
-use crate::redis::{LensClient, commands::ScanResult};
+use crate::redis::{LensClient, ScanResponse, ScanResult};
 
 pub trait SetCommands {
     fn scard(&self, key: &str) -> Result<i64>;
@@ -33,7 +33,7 @@ impl SetCommands for LensClient {
             .arg(count)
             .query(&mut con)
             .context("Failed to sscan")?;
-        Ok(super::ScanResponse::new(res.0, res.1))
+        Ok(ScanResponse::new(res.0, res.1))
     }
 
     fn sadd(&self, key: &str, member: &str) -> Result<()> {

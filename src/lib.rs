@@ -7,9 +7,8 @@ use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
 };
 
-use crate::app::App;
 use crate::redis::ClientOps;
-use crate::redis::commands::*;
+use crate::{app::App, redis::ScanResponse};
 
 pub mod app;
 pub mod args;
@@ -17,7 +16,20 @@ pub mod redis;
 pub mod tree;
 pub mod ui;
 
-pub fn start_ui<R: ClientOps + 'static>(client: R) -> Result<()> {
+use crate::args::{Arg, Commands};
+
+pub fn handle_args<T: ClientOps>(args: &Arg, client: T) -> Result<()> {
+    match &args.cmd {
+        Some(Commands::Get { key }) => get(key, &client),
+        Some(Commands::Set { key, value }) => set(key, value, &client),
+        Some(Commands::Delete { key }) => delete_keys(key, &client),
+        Some(Commands::DeleteAll { pattern }) => delete_keys(pattern, &client),
+        Some(Commands::Scan { pattern }) => scan(pattern, &client),
+        None => start_ui(client),
+    }
+}
+
+pub fn start_ui<R: ClientOps>(client: R) -> Result<()> {
     stdout().execute(EnableMouseCapture)?;
     let mut terminal = ratatui::init();
     App::new(client)?.run(&mut terminal)?;

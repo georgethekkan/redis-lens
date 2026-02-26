@@ -1,6 +1,6 @@
 use crate::{
     app::{App, Focus, Insert},
-    redis::datatype::DataType,
+    redis::DataType,
 };
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -93,7 +93,7 @@ impl<R: crate::redis::ClientOps> App<R> {
                     let insert = Insert {
                         step: 2, // Skip name/type, go straight to value
                         name: loaded.key.clone(),
-                        data_type: data_type.as_str().into(),
+                        data_type: DataType::from_str(data_type.as_str()),
                         value: String::new(),
                     };
                     self.insert = Some(insert);

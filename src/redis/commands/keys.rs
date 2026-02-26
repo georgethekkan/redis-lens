@@ -1,20 +1,7 @@
 use color_eyre::eyre::{Context, Result};
 use redis::Commands; // Import redis trait for low-level calls if needed, or just specific methods
 
-use crate::redis::{LensClient, datatype::DataType};
-
-pub struct ScanResponse<T> {
-    pub next: String,
-    pub keys: T,
-}
-
-pub type ScanResult<T> = Result<ScanResponse<T>>;
-
-impl<T> ScanResponse<T> {
-    pub fn new(next: String, keys: T) -> Self {
-        Self { next, keys }
-    }
-}
+use crate::redis::{LensClient, ScanResponse, ScanResult, datatype::DataType};
 
 pub trait KeysCommands {
     fn scan(&self, cursor: &str, pattern: &str, count: usize) -> ScanResult<Vec<String>>;
@@ -56,11 +43,11 @@ impl KeysCommands for LensClient {
 
     fn data_type(&self, key: &str) -> Result<DataType> {
         let mut con = self.get_connection()?;
-        let key_type: String = redis::cmd("TYPE")
+        let data_type: String = redis::cmd("TYPE")
             .arg(key)
             .query(&mut *con)
             .context("Failed to get key type from Redis")?;
-        Ok(key_type.as_str().into())
+        Ok(DataType::from_str(&data_type))
     }
 
     fn delete_all(&self, pattern: &str) -> Result<usize> {
