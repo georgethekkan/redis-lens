@@ -1,7 +1,7 @@
 use color_eyre::{Result, eyre::Ok};
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::redis::datatype::DataType;
+use crate::redis::DataType;
 
 #[derive(Debug, Default, Clone)]
 pub struct Insert {
@@ -43,26 +43,24 @@ impl Insert {
                     return Ok(InsertKeyEvent::PerformInsert);
                 }
             }
-            KeyCode::Esc => {
-                return Ok(InsertKeyEvent::NotInserting);
-            }
+            KeyCode::Esc => return Ok(InsertKeyEvent::NotInserting),
             KeyCode::Char(c) => match self.step {
                 0 => self.name.push(c),
-                1 => self.data_type = c.into(),
+                1 => self.data_type = DataType::from_char(c),
                 2 => self.value.push(c),
                 _ => {}
             },
-            KeyCode::Backspace => match self.step {
-                0 => {
-                    self.name.pop();
-                }
-                2 => {
-                    self.value.pop();
-                }
-                _ => {}
-            },
+            KeyCode::Backspace => self.handle_backspace(),
             _ => {}
         }
         Ok(InsertKeyEvent::Noop)
+    }
+
+    fn handle_backspace(&mut self) {
+        if self.step == 0 {
+            self.name.pop();
+        } else if self.step == 2 {
+            self.value.pop();
+        }
     }
 }

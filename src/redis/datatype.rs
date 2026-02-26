@@ -20,12 +20,8 @@ impl DataType {
             DataType::None => "",
         }
     }
-}
 
-impl From<char> for DataType {
-    fn from(c: char) -> Self {
-        // Type selection - keep it simple: s: string, h: hash, l: list, e: set, z: zset
-
+    pub fn from_char(c: char) -> Self {
         match c {
             's' => DataType::String,
             'h' => DataType::Hash,
@@ -35,12 +31,8 @@ impl From<char> for DataType {
             _ => DataType::None,
         }
     }
-}
 
-impl From<&str> for DataType {
-    fn from(c: &str) -> Self {
-        // Type selection - keep it simple: s: string, h: hash, l: list, e: set, z: zset
-
+    pub fn from_str(c: &str) -> Self {
         match c.to_lowercase().as_str() {
             "string" => DataType::String,
             "hash" => DataType::Hash,

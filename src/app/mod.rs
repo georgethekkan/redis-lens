@@ -4,7 +4,7 @@ pub mod fetch;
 pub mod insert;
 
 use crate::{
-    redis::{ClientOps, datatype::DataType},
+    redis::{ClientOps, DataType},
     tree::Tree,
     ui,
 };
@@ -44,11 +44,11 @@ pub struct LoadedKeyData {
     pub data_type: DataType,
     pub ttl: String,
     pub length: i64,
-    pub content: CollectionData,
+    pub content: Data,
 }
 
 #[derive(Debug, Clone)]
-pub enum CollectionData {
+pub enum Data {
     String(String, usize),
     Hash(Vec<(String, String)>),
     List(Vec<String>),
@@ -231,10 +231,10 @@ impl<R: ClientOps> App<R> {
             return 0;
         };
         match &data.content {
-            CollectionData::List(items) => items.len(),
-            CollectionData::Hash(fields) => fields.len(),
-            CollectionData::Set(members) => members.len(),
-            CollectionData::ZSet(items) => items.len(),
+            Data::List(items) => items.len(),
+            Data::Hash(fields) => fields.len(),
+            Data::Set(members) => members.len(),
+            Data::ZSet(items) => items.len(),
             _ => 0,
         }
     }
@@ -250,13 +250,13 @@ impl<R: ClientOps> App<R> {
     }
 
     pub fn update_stats(&mut self) -> Result<()> {
-        if let Ok(info) = self.client.info(Some("memory")) {
-            for line in info.lines() {
-                if line.starts_with("used_memory_human:") {
-                    self.stats.used_memory =
-                        line.trim_start_matches("used_memory_human:").to_string();
-                    break;
-                }
+        let Ok(info) = self.client.info(Some("memory")) else {
+            return Ok(());
+        };
+        for line in info.lines() {
+            if line.starts_with("used_memory_human:") {
+                self.stats.used_memory = line.trim_start_matches("used_memory_human:").to_string();
+                break;
             }
         }
 

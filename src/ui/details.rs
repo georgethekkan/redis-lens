@@ -3,7 +3,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, Wrap};
 
-use crate::app::{App, CollectionData, LoadedKeyData};
+use crate::app::{App, Data, LoadedKeyData};
 use crate::redis::ClientOps;
 use crate::ui::theme::THEME;
 
@@ -108,13 +108,13 @@ fn draw_content<R: ClientOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
     frame.render_widget(block, area);
 
     match &data.content {
-        CollectionData::String(val, _len) => {
+        Data::String(val, _len) => {
             let p = Paragraph::new(val.clone())
                 .wrap(Wrap { trim: false })
                 .style(Style::default().fg(Color::White));
             frame.render_widget(p, inner_area);
         }
-        CollectionData::List(items) => {
+        Data::List(items) => {
             let start_index = app.collection_page * app.collection_page_size;
             let rows: Vec<Row> = items
                 .iter()
@@ -133,7 +133,7 @@ fn draw_content<R: ClientOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
                 .column_spacing(1);
             frame.render_stateful_widget(table, inner_area, &mut app.details_table_state);
         }
-        CollectionData::Hash(fields) => {
+        Data::Hash(fields) => {
             let rows: Vec<Row> = fields
                 .iter()
                 .map(|(field, value)| {
@@ -153,7 +153,7 @@ fn draw_content<R: ClientOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
             .column_spacing(1);
             frame.render_stateful_widget(table, inner_area, &mut app.details_table_state);
         }
-        CollectionData::Set(members) => {
+        Data::Set(members) => {
             let rows: Vec<Row> = members
                 .iter()
                 .map(|member| Row::new([Cell::from(member.clone())]))
@@ -165,7 +165,7 @@ fn draw_content<R: ClientOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
                 .column_spacing(1);
             frame.render_stateful_widget(table, inner_area, &mut app.details_table_state);
         }
-        CollectionData::ZSet(items) => {
+        Data::ZSet(items) => {
             let rows: Vec<Row> = items
                 .iter()
                 .map(|(member, score)| {
@@ -182,7 +182,7 @@ fn draw_content<R: ClientOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
                 .column_spacing(1);
             frame.render_stateful_widget(table, inner_area, &mut app.details_table_state);
         }
-        CollectionData::None => {
+        Data::None => {
             frame.render_widget(Paragraph::new("No content loaded").italic(), inner_area);
         }
     }

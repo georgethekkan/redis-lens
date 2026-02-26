@@ -1,6 +1,6 @@
 use crate::{
-    app::{App, CollectionData, LoadedKeyData},
-    redis::datatype::DataType,
+    app::{App, Data, LoadedKeyData},
+    redis::{DataType, ScanResponse},
 };
 use color_eyre::eyre::Result;
 use tracing::warn;
@@ -16,7 +16,7 @@ impl<R: crate::redis::ClientOps> App<R> {
                 warn!("Error getting type {}", e);
                 DataType::None
             }
-            Ok(dt) => dt.as_str().into(),
+            Ok(dt) => dt,
         };
 
         // 2. Get TTL
@@ -34,7 +34,7 @@ impl<R: crate::redis::ClientOps> App<R> {
             DataType::Hash => self.fetch_hash_content(&key),
             DataType::Set => self.fetch_set_content(&key),
             DataType::Zset => self.fetch_zset_content(&key),
-            _ => (0, CollectionData::None),
+            _ => (0, Data::None),
         };
 
         self.loaded_key = Some(LoadedKeyData {
@@ -48,20 +48,20 @@ impl<R: crate::redis::ClientOps> App<R> {
         Ok(())
     }
 
-    fn fetch_string_content(&self, key: &str) -> (i64, CollectionData) {
+    fn fetch_string_content(&self, key: &str) -> (i64, Data) {
         let val = self.client.get(key).unwrap_or_else(|e| e.to_string());
         let len = self.client.strlen(key).unwrap_or(0);
-        (len, CollectionData::String(val, len as usize))
+        (len, Data::String(val, len as usize))
     }
 
-    fn fetch_list_content(&self, key: &str) -> (i64, CollectionData) {
+    fn fetch_list_content(&self, key: &str) -> (i64, Data) {
         let len = self.client.llen(key).unwrap_or(0);
         let (start, stop) = page_range_i64(self.collection_page, self.collection_page_size);
         let items = self.client.lrange(key, start, stop).unwrap_or_default();
-        (len, CollectionData::List(items))
+        (len, Data::List(items))
     }
 
-    fn fetch_hash_content(&mut self, key: &str) -> (i64, CollectionData) {
+    fn fetch_hash_content(&mut self, key: &str) -> (i64, Data) {
         let len = self.client.hlen(key).unwrap_or(0);
         let cursor = self.get_current_cursor();
         let (next_cursor, items) = self
@@ -70,29 +70,29 @@ impl<R: crate::redis::ClientOps> App<R> {
             .unwrap_or(("0".to_string(), vec![]));
 
         self.update_next_cursor(next_cursor);
-        (len, CollectionData::Hash(items))
+        (len, Data::Hash(items))
     }
 
-    fn fetch_set_content(&mut self, key: &str) -> (i64, CollectionData) {
+    fn fetch_set_content(&mut self, key: &str) -> (i64, Data) {
         let len = self.client.scard(key).unwrap_or(0);
         let cursor = self.get_current_cursor();
-        let (next_cursor, items) = self
+        let ScanResponse { next, keys } = self
             .client
             .sscan(key, cursor, self.collection_page_size)
-            .unwrap_or(("0".to_string(), vec![]));
+            .unwrap_or(ScanResponse::new("0".to_string(), vec![]));
 
-        self.update_next_cursor(next_cursor);
-        (len, CollectionData::Set(items))
+        self.update_next_cursor(next);
+        (len, Data::Set(keys))
     }
 
-    fn fetch_zset_content(&self, key: &str) -> (i64, CollectionData) {
+    fn fetch_zset_content(&self, key: &str) -> (i64, Data) {
         let len = self.client.zcard(key).unwrap_or(0);
         let (start, stop) = page_range_i64(self.collection_page, self.collection_page_size);
         let items = self
             .client
             .zrange_with_scores(key, start, stop)
             .unwrap_or_default();
-        (len, CollectionData::ZSet(items))
+        (len, Data::ZSet(items))
     }
 
     pub fn next_collection_page(&mut self) {

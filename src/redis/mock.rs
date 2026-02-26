@@ -1,13 +1,16 @@
 #![allow(unused)]
-use std::{collections::HashMap, sync::RwLock};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::RwLock,
+};
 
 use color_eyre::eyre::{Ok, Result, bail};
 
 use crate::redis::{
-    ClientOps,
+    ClientOps, ScanResponse, ScanResult,
     commands::{
-        HashCommands, KeysCommands, ListCommands, ScanResponse, ServerCommands, SetCommands,
-        SortedSetCommands, StringCommands,
+        HashCommands, KeysCommands, ListCommands, ServerCommands, SetCommands, SortedSetCommands,
+        StringCommands,
     },
     datatype::DataType,
 };
@@ -17,13 +20,26 @@ pub enum RedisValue {
     String(String),
     Hash(HashMap<String, String>),
     List(Vec<String>),
-    Set(std::collections::HashSet<String>),
+    Set(HashSet<String>),
     SortedSet(Vec<(String, f64)>),
 }
 
 #[derive(Default, Debug)]
 pub struct MockClient {
     items: RwLock<HashMap<String, RedisValue>>,
+}
+impl MockClient {
+    pub fn setup_keys(&self) -> Result<()> {
+        // Pre-populate with some sample data for demo
+        self.set("demo:string", "Hello Redis Lens!")?;
+        self.hset("demo:hash", "version", "0.1.0")?;
+        self.hset("demo:hash", "author", "George")?;
+        self.rpush("demo:list", "item 1")?;
+        self.rpush("demo:list", "item 2")?;
+        self.sadd("demo:set", "member A")?;
+        self.sadd("demo:set", "member B")?;
+        Ok(())
+    }
 }
 
 impl ClientOps for MockClient {
@@ -73,7 +89,7 @@ impl StringCommands for MockClient {
 }
 
 impl KeysCommands for MockClient {
-    fn scan(&self, _cursor: &str, pattern: &str, _count: usize) -> Result<ScanResponse> {
+    fn scan(&self, _cursor: &str, pattern: &str, _count: usize) -> ScanResult<Vec<String>> {
         let items = self.items.read().unwrap();
         let res = if pattern == "*" || pattern.is_empty() {
             items.iter().map(|it| it.0.to_owned()).collect::<Vec<_>>()
@@ -289,7 +305,7 @@ impl SetCommands for MockClient {
         }
     }
 
-    fn sscan(&self, key: &str, cursor: &str, count: usize) -> Result<(String, Vec<String>)> {
+    fn sscan(&self, key: &str, cursor: &str, count: usize) -> ScanResult<Vec<String>> {
         let items = self.items.read().unwrap();
         match items.get(key) {
             Some(RedisValue::Set(s)) => {
@@ -301,10 +317,10 @@ impl SetCommands for MockClient {
                 } else {
                     end.to_string()
                 };
-                Ok((next, members[start..end].to_vec()))
+                Ok(ScanResponse::new(next, members[start..end].to_vec()))
             }
             Some(_) => bail!("WRONGTYPE Operation against a key holding the wrong kind of value"),
-            None => Ok(("0".to_string(), vec![])),
+            None => Ok(ScanResponse::new("0".to_string(), vec![])),
         }
     }
 
@@ -312,7 +328,7 @@ impl SetCommands for MockClient {
         let mut items = self.items.write().unwrap();
         let set = items
             .entry(key.to_string())
-            .or_insert_with(|| RedisValue::Set(std::collections::HashSet::new()));
+            .or_insert_with(|| RedisValue::Set(HashSet::new()));
         if let RedisValue::Set(s) = set {
             s.insert(member.to_string());
             Ok(())
@@ -360,7 +376,7 @@ impl SortedSetCommands for MockClient {
         }
     }
 
-    fn zscan(&self, key: &str, cursor: &str, count: usize) -> Result<(String, Vec<(String, f64)>)> {
+    fn zscan(&self, key: &str, cursor: &str, count: usize) -> ScanResult<Vec<(String, f64)>> {
         let items = self.items.read().unwrap();
         match items.get(key) {
             Some(RedisValue::SortedSet(s)) => {
@@ -371,10 +387,10 @@ impl SortedSetCommands for MockClient {
                 } else {
                     end.to_string()
                 };
-                Ok((next, s[start..end].to_vec()))
+                Ok(ScanResponse::new(next, s[start..end].to_vec()))
             }
             Some(_) => bail!("WRONGTYPE Operation against a key holding the wrong kind of value"),
-            None => Ok(("0".to_string(), vec![])),
+            None => Ok(ScanResponse::new("0".to_string(), vec![])),
         }
     }
 

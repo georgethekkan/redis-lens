@@ -1,6 +1,6 @@
 use crate::{
-    app::{App, CollectionData, Editing},
-    redis::datatype::DataType,
+    app::{App, Data, Editing},
+    redis::DataType,
 };
 use color_eyre::eyre::Result;
 
@@ -95,22 +95,22 @@ impl<R: crate::redis::ClientOps> App<R> {
 
         let key = loaded.key.clone();
         match &loaded.content {
-            CollectionData::Hash(fields) => {
+            Data::Hash(fields) => {
                 if let Some((field, _)) = fields.get(index) {
                     self.client.hdel(&key, field)?;
                 }
             }
-            CollectionData::List(items) => {
+            Data::List(items) => {
                 if let Some(value) = items.get(index) {
                     self.client.lrem(&key, 1, value)?;
                 }
             }
-            CollectionData::Set(members) => {
+            Data::Set(members) => {
                 if let Some(member) = members.get(index) {
                     self.client.srem(&key, member)?;
                 }
             }
-            CollectionData::ZSet(items) => {
+            Data::ZSet(items) => {
                 if let Some((member, _)) = items.get(index) {
                     self.client.zrem(&key, member)?;
                 }
@@ -137,10 +137,10 @@ impl<R: crate::redis::ClientOps> App<R> {
             return;
         };
         match &loaded.content {
-            CollectionData::String(val, _) => {
+            Data::String(val, _) => {
                 self.editing = Some(Editing::new(val.clone(), val.clone()));
             }
-            CollectionData::Hash(fields) => {
+            Data::Hash(fields) => {
                 let Some(index) = self.details_table_state.selected() else {
                     return;
                 };
@@ -149,14 +149,14 @@ impl<R: crate::redis::ClientOps> App<R> {
                 };
                 self.editing = Some(Editing::new(val.clone(), val.clone()));
             }
-            CollectionData::List(items) => {
+            Data::List(items) => {
                 let Some(index) = self.details_table_state.selected() else {
                     return;
                 };
                 let Some(val) = items.get(index) else { return };
                 self.editing = Some(Editing::new(val.clone(), val.clone()));
             }
-            CollectionData::Set(members) => {
+            Data::Set(members) => {
                 let Some(index) = self.details_table_state.selected() else {
                     return;
                 };
@@ -165,7 +165,7 @@ impl<R: crate::redis::ClientOps> App<R> {
                 };
                 self.editing = Some(Editing::new(val.clone(), val.clone()));
             }
-            CollectionData::ZSet(items) => {
+            Data::ZSet(items) => {
                 let Some(index) = self.details_table_state.selected() else {
                     return;
                 };
@@ -194,11 +194,11 @@ impl<R: crate::redis::ClientOps> App<R> {
         let new_value = e.buffer.clone();
 
         match &loaded.content {
-            CollectionData::String(_, _) => {
+            Data::String(_, _) => {
                 self.client.set(&key, &new_value)?;
                 self.message = Some(format!("Updated string: {}", key));
             }
-            CollectionData::Hash(fields) => {
+            Data::Hash(fields) => {
                 let Some(index) = self.details_table_state.selected() else {
                     return Ok(());
                 };
@@ -208,7 +208,7 @@ impl<R: crate::redis::ClientOps> App<R> {
                 self.client.hset(&key, field, &new_value)?;
                 self.message = Some(format!("Updated hash field: {}", field));
             }
-            CollectionData::List(_) => {
+            Data::List(_) => {
                 let Some(index) = self.details_table_state.selected() else {
                     return Ok(());
                 };
@@ -216,12 +216,12 @@ impl<R: crate::redis::ClientOps> App<R> {
                 self.client.lset(&key, list_index, &new_value)?;
                 self.message = Some(format!("Updated list item at index {}", list_index));
             }
-            CollectionData::Set(_) => {
+            Data::Set(_) => {
                 self.client.srem(&key, &e.original)?;
                 self.client.sadd(&key, &new_value)?;
                 self.message = Some("Updated set member".to_string());
             }
-            CollectionData::ZSet(items) => {
+            Data::ZSet(items) => {
                 let Some(index) = self.details_table_state.selected() else {
                     return Ok(());
                 };
