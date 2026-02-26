@@ -3,7 +3,7 @@ use color_eyre::Result;
 
 use color_eyre::eyre::Ok;
 use redis_lens::redis::{LensClient, MockClient};
-use redis_lens::{args, handle_args};
+use redis_lens::{args, run};
 
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -18,10 +18,10 @@ fn main() -> Result<()> {
     if args.config.mock {
         let mock = MockClient::default();
         mock.setup_keys()?;
-        handle_args(&args, mock)?;
+        run(&args, mock)?;
     } else {
         let client = LensClient::new(&args.config)?;
-        handle_args(&args, client)?;
+        run(&args, client)?;
     }
 
     Ok(())

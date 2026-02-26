@@ -18,7 +18,7 @@ pub mod ui;
 
 use crate::args::{Arg, Commands};
 
-pub fn handle_args<T: ClientOps>(args: &Arg, client: T) -> Result<()> {
+pub fn run<T: ClientOps>(args: &Arg, client: T) -> Result<()> {
     match &args.cmd {
         Some(Commands::Get { key }) => get(key, &client),
         Some(Commands::Set { key, value }) => set(key, value, &client),
@@ -32,7 +32,10 @@ pub fn handle_args<T: ClientOps>(args: &Arg, client: T) -> Result<()> {
 pub fn start_ui<R: ClientOps>(client: R) -> Result<()> {
     stdout().execute(EnableMouseCapture)?;
     let mut terminal = ratatui::init();
-    App::new(client)?.run(&mut terminal)?;
+
+    let mut app = App::new(client)?;
+    app.run(&mut terminal)?;
+
     ratatui::restore();
     stdout().execute(DisableMouseCapture)?;
     Ok(())

@@ -47,7 +47,7 @@ impl KeysCommands for LensClient {
             .arg(key)
             .query(&mut *con)
             .context("Failed to get key type from Redis")?;
-        Ok(DataType::from_str(&data_type))
+        Ok(DataType::new(&data_type))
     }
 
     fn delete_all(&self, pattern: &str) -> Result<usize> {
