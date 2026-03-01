@@ -33,6 +33,7 @@ impl r2d2::ManageConnection for RedisConnectionManager {
     }
 }
 
+/// Core trait defining operations that can be performed against a Redis-compatible store.
 pub trait ClientOps:
     commands::KeysCommands
     + commands::StringCommands
@@ -44,10 +45,13 @@ pub trait ClientOps:
     + Send
     + Sync
 {
+    /// Returns the connection URL.
     fn url(&self) -> String;
+    /// Switches the active database index.
     fn select_db(&mut self, db: u8) -> Result<()>;
 }
 
+/// A standard Redis client implementation using `r2d2` for connection pooling.
 pub struct LensClient {
     pub url: String,
     pub config: Config,
@@ -73,7 +77,9 @@ impl ClientOps for LensClient {
 }
 
 impl LensClient {
-    //#[tracing::instrument(skip(cfg))]
+    /// Creates a new `LensClient` from the provided configuration.
+    ///
+    /// This will attempt to establish a connection pool to the Redis server.
     pub fn new(cfg: &Config) -> Result<LensClient> {
         info!("Connecting to Redis at {} using DB {}", cfg.url, cfg.db);
 
@@ -91,6 +97,7 @@ impl LensClient {
         })
     }
 
+    /// Acquires a connection from the pool with a default timeout of 5 seconds.
     pub fn get_connection(&self) -> Result<PooledConnection<RedisConnectionManager>> {
         self.pool
             .get_timeout(std::time::Duration::from_secs(5))

@@ -2,7 +2,6 @@
 
 **Redis Lens** is a high-performance, premium Terminal User Interface (TUI) for exploring and managing Redis and Valkey databases. Built with Rust and `ratatui`, it provides a sleek, interactive experience for navigating complex datasets.
 
-![Redis Lens Dashboard](https://raw.githubusercontent.com/georgethekkan/redis-lens/main/assets/preview.png) *(Placeholder: Replace with actual screenshot when available)*
 
 ## ✨ Features
 
