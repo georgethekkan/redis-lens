@@ -18,6 +18,9 @@ pub mod ui;
 
 use crate::args::{Arg, Commands};
 
+/// Main entry point for the CLI and TUI application.
+///
+/// Dispatches to subcommands or starts the interactive TUI based on arguments.
 pub fn run<T: ClientOps>(args: &Arg, client: T) -> Result<()> {
     match &args.cmd {
         Some(Commands::Get { key }) => get(key, &client),
@@ -29,6 +32,7 @@ pub fn run<T: ClientOps>(args: &Arg, client: T) -> Result<()> {
     }
 }
 
+/// Starts the interactive Terminal User Interface (TUI).
 pub fn start_ui<R: ClientOps>(client: R) -> Result<()> {
     stdout().execute(EnableMouseCapture)?;
     let mut terminal = ratatui::init();
@@ -41,6 +45,7 @@ pub fn start_ui<R: ClientOps>(client: R) -> Result<()> {
     Ok(())
 }
 
+/// Deletes keys matching the specified pattern.
 pub fn delete_keys<R: ClientOps>(pattern: &str, client: &R) -> Result<()> {
     println!("Deleting keys matching pattern: {}", pattern);
     let count = client.delete_all(pattern)?;
@@ -52,6 +57,7 @@ pub fn delete_keys<R: ClientOps>(pattern: &str, client: &R) -> Result<()> {
     Ok(())
 }
 
+/// Fetches the value of a string key.
 pub fn get<R: ClientOps>(key: &str, client: &R) -> Result<()> {
     println!("Fetching key: {}", key);
     let value: String = client.get(key).context("Failed to get key from Redis")?;
@@ -59,6 +65,7 @@ pub fn get<R: ClientOps>(key: &str, client: &R) -> Result<()> {
     Ok(())
 }
 
+/// Sets the value of a string key.
 pub fn set<R: ClientOps>(key: &str, value: &str, client: &R) -> Result<()> {
     println!("Setting key: {} to value: {}", key, value);
     client
@@ -68,6 +75,7 @@ pub fn set<R: ClientOps>(key: &str, value: &str, client: &R) -> Result<()> {
     Ok(())
 }
 
+/// Scans keys matching the specified pattern and prints the first page of results.
 pub fn scan<R: ClientOps>(pattern: &str, client: &R) -> Result<()> {
     let ScanResponse { next, keys } = client.scan("0", pattern, 100)?;
 
