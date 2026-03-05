@@ -35,7 +35,7 @@ pub enum Commands {
     },
 }
 
-#[derive(Debug, Clone, Args)]
+#[derive(Debug, Clone, Args, Default)]
 pub struct Config {
     /// Redis server URL
     #[clap(long, default_value = "localhost:6379")]
@@ -70,4 +70,15 @@ pub struct KeyValue {
 
 pub fn parse() -> Arg {
     Arg::parse()
+}
+
+impl Config {
+    /// Creates a new `Config` with default values.
+    pub fn new(url: &str, db: u8) -> Self {
+        Self {
+            url: url.into(),
+            db,
+            ..Default::default()
+        }
+    }
 }

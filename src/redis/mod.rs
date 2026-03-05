@@ -144,13 +144,7 @@ mod test {
     };
 
     lazy_static! {
-        static ref cfg: Config = Config {
-            url: "localhost:6379".to_string(),
-            db: 0,
-            mock: false,
-            username: None,
-            password: None,
-        };
+        static ref cfg: Config = Config::new("localhost:6379", 0);
         static ref CLIENT: Arc<Mutex<LensClient>> =
             Arc::new(Mutex::new(LensClient::new(&cfg).unwrap()));
     }
@@ -158,7 +152,7 @@ mod test {
     #[test]
     fn test_pubsub() {
         let client = CLIENT.lock().unwrap();
-        let res = client.scan_channels("", "", 10);
-        assert_eq!(true, res.is_ok());
+        let res = client.scan_channels("", "*", 10);
+        assert!(res.is_ok());
     }
 }
