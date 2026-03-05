@@ -156,7 +156,7 @@ mod test {
     }
 
     #[test]
-    fn test_() {
+    fn test_pubsub() {
         let client = CLIENT.lock().unwrap();
         let res = client.scan_channels("", "", 10);
         assert_eq!(true, res.is_ok());
