@@ -9,8 +9,8 @@ use color_eyre::eyre::{Ok, Result, bail};
 use crate::redis::{
     ClientOps, ScanResponse, ScanResult,
     commands::{
-        HashCommands, KeysCommands, ListCommands, ServerCommands, SetCommands, SortedSetCommands,
-        StringCommands,
+        HashCommands, KeysCommands, ListCommands, PubSub, ServerCommands, SetCommands,
+        SortedSetCommands, StringCommands,
     },
     datatype::DataType,
 };
@@ -417,6 +417,12 @@ impl SortedSetCommands for MockClient {
             s.retain(|(m, _)| m != member);
         }
         Ok(())
+    }
+}
+
+impl PubSub for MockClient {
+    fn scan_channels(&self, cursor: &str, pattern: &str, count: usize) -> ScanResult<Vec<String>> {
+        todo!()
     }
 }
 

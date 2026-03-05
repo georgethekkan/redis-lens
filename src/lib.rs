@@ -13,6 +13,7 @@ use crate::{app::App, redis::ScanResponse};
 pub mod app;
 pub mod args;
 pub mod redis;
+pub mod tracing;
 pub mod tree;
 pub mod ui;
 

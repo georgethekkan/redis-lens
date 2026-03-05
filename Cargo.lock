@@ -1440,6 +1440,7 @@ dependencies = [
  "color-eyre",
  "crossterm",
  "itertools",
+ "lazy_static",
  "r2d2",
  "ratatui",
  "redis",

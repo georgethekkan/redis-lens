@@ -42,6 +42,7 @@ pub trait ClientOps:
     + commands::SetCommands
     + commands::SortedSetCommands
     + commands::ServerCommands
+    + commands::PubSub
     + Send
     + Sync
 {
@@ -129,5 +130,35 @@ pub type ScanResult<T> = Result<ScanResponse<T>>;
 impl<T> ScanResponse<T> {
     pub fn new(next: String, keys: T) -> Self {
         Self { next, keys }
+    }
+}
+
+mod test {
+    use std::sync::{Arc, Mutex};
+
+    use lazy_static::lazy_static;
+
+    use crate::{
+        args::Config,
+        redis::{LensClient, commands::PubSub},
+    };
+
+    lazy_static! {
+        static ref cfg: Config = Config {
+            url: "localhost:6379".to_string(),
+            db: 0,
+            mock: false,
+            username: None,
+            password: None,
+        };
+        static ref CLIENT: Arc<Mutex<LensClient>> =
+            Arc::new(Mutex::new(LensClient::new(&cfg).unwrap()));
+    }
+
+    #[test]
+    fn test_() {
+        let client = CLIENT.lock().unwrap();
+        let res = client.scan_channels("", "", 10);
+        assert_eq!(true, res.is_ok());
     }
 }
