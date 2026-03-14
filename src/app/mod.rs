@@ -113,10 +113,11 @@ pub struct App<R: ClientOps> {
     pub tree: Tree,
 
     pub db_size: usize,
+    pub read_only: bool,
 }
 
 impl<R: ClientOps> App<R> {
-    pub fn new(redis_client: R) -> Result<Self> {
+    pub fn new(redis_client: R, read_only: bool) -> Result<Self> {
         let mut app = Self {
             client: redis_client,
             keys: Vec::new(),
@@ -143,6 +144,7 @@ impl<R: ClientOps> App<R> {
             tree: Tree::new(),
             db_size: 0,
             confirm_delete: None,
+            read_only,
         };
 
         app.refresh()?;

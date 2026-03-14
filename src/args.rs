@@ -56,6 +56,10 @@ pub struct Config {
     /// Use a mock Redis for testing/dry run
     #[clap(long)]
     pub mock: bool,
+
+    /// Start in read-only mode (destructive actions disabled)
+    #[clap(long)]
+    pub read_only: bool,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -80,6 +84,7 @@ impl Config {
             password: None,
             db,
             mock: false,
+            read_only: false,
         }
     }
 }
