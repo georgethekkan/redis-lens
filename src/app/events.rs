@@ -65,6 +65,11 @@ impl<R: crate::redis::ClientOps> App<R> {
             return Ok(());
         }
 
+        if self.confirm_delete.is_some() {
+            self.handle_delete_confirmation_key_event(key)?;
+            return Ok(());
+        }
+
         if self.show_help {
             self.show_help = false;
             return Ok(());
@@ -248,6 +253,19 @@ impl<R: crate::redis::ClientOps> App<R> {
                 if self.db_cursor < 15 {
                     self.db_cursor += 1;
                 }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    pub fn handle_delete_confirmation_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+                self.confirm_delete_action()?;
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                self.confirm_delete = None;
             }
             _ => {}
         }

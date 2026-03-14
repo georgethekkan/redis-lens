@@ -64,6 +64,12 @@ pub struct Editing {
     pub original: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct DeleteConfirmation {
+    pub path: String,
+    pub is_folder: bool,
+}
+
 impl Editing {
     pub fn new(buffer: String, original: String) -> Self {
         Self { buffer, original }
@@ -95,6 +101,8 @@ pub struct App<R: ClientOps> {
     // DB Selection
     pub is_selecting_db: bool,
     pub db_cursor: usize,
+
+    pub confirm_delete: Option<DeleteConfirmation>,
 
     // Pagination
     pub collection_page: usize,
@@ -134,6 +142,7 @@ impl<R: ClientOps> App<R> {
             collection_cursors: vec!["0".to_string()],
             tree: Tree::new(),
             db_size: 0,
+            confirm_delete: None,
         };
 
         app.refresh()?;
