@@ -38,6 +38,9 @@ impl MockClient {
         self.rpush("demo:list", "item 2")?;
         self.sadd("demo:set", "member A")?;
         self.sadd("demo:set", "member B")?;
+        for i in 1..=500 {
+            self.set(&format!("demo:strings:{}", i), &i.to_string())?;
+        }
         Ok(())
     }
 }

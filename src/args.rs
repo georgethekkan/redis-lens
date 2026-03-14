@@ -71,3 +71,15 @@ pub struct KeyValue {
 pub fn parse() -> Arg {
     Arg::parse()
 }
+
+impl Config {
+    pub fn new(url: String, db: u8) -> Self {
+        Self {
+            url,
+            username: None,
+            password: None,
+            db,
+            mock: false,
+        }
+    }
+}
