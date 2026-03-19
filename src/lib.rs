@@ -28,16 +28,16 @@ pub fn run<T: ClientOps>(args: &Arg, client: T) -> Result<()> {
         Some(Commands::Delete { key }) => delete_keys(key, &client),
         Some(Commands::DeleteAll { pattern }) => delete_keys(pattern, &client),
         Some(Commands::Scan { pattern }) => scan(pattern, &client),
-        None => start_ui(client),
+        None => start_ui(client, args.config.read_only),
     }
 }
 
 /// Starts the interactive Terminal User Interface (TUI).
-pub fn start_ui<R: ClientOps>(client: R) -> Result<()> {
+pub fn start_ui<R: ClientOps>(client: R, read_only: bool) -> Result<()> {
     stdout().execute(EnableMouseCapture)?;
     let mut terminal = ratatui::init();
 
-    let mut app = App::new(client)?;
+    let mut app = App::new(client, read_only)?;
     app.run(&mut terminal)?;
 
     ratatui::restore();

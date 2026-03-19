@@ -6,6 +6,7 @@ use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 use crate::app::App;
 use crate::redis::ClientOps;
 
+mod confirmation_modal;
 mod details;
 mod header;
 mod help;
@@ -128,6 +129,10 @@ pub fn draw<R: ClientOps>(frame: &mut Frame, app: &mut App<R>) {
     if app.show_help {
         let area = centered_rect(60, 70, frame.area());
         help_modal::draw(frame, app, area);
+    }
+
+    if app.confirm_delete.is_some() {
+        confirmation_modal::draw(frame, app, frame.area());
     }
 }
 

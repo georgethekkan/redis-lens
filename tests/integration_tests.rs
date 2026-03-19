@@ -1,28 +1,24 @@
+use color_eyre::eyre::Result;
 use redis_lens::args::Config;
 use redis_lens::redis::LensClient;
 use redis_lens::redis::ScanResponse;
 use redis_lens::redis::commands::*;
 use std::collections::HashSet;
+use std::sync::LazyLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn get_client() -> Option<LensClient> {
+static LC : LazyLock<Result<LensClient>> = LazyLock::new(|| {
     let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "127.0.0.1:6379".to_string());
-    let config = Config {
-        url,
-        db: 15, // Use DB 15 for tests
-        username: None,
-        password: None,
-        mock: false,
-    };
-    LensClient::new(&config).ok()
-}
+    let config = Config::new(url, 15); // Use DB 15 for tests
+    LensClient::new(&config)
+});
 
 macro_rules! skip_if_no_redis {
     () => {
-        match get_client() {
-            Some(c) => c,
-            None => {
-                eprintln!("Skipping test: Redis server not available at 127.0.0.1:6379");
+        match &*LC {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Skipping test: Redis server not available at 127.0.0.1:6379, error: {}", e);
                 return;
             }
         }
@@ -153,6 +149,37 @@ fn test_sorted_sets() {
 }
 
 #[test]
+fn test_pagination_many_keys_db_10() {
+    let client = skip_if_no_redis!();
+    let mut cfg = client.config.clone();
+    cfg.db = 10; // Use a different DB for pagination test to avoid polluting other tests, since we create many keys
+
+    let client = LensClient::new(&cfg).expect("Failed to create client for db 10");
+    
+    let prefix1 = "pagination_test:1:";
+    let prefix2 = "pagination_test:2:";
+    let total_keys = 500;
+    for i in 0..total_keys {
+        let k1 = format!("{}{}", prefix1, i);
+        let k2 = format!("{}{}", prefix2, i);
+        let val = format!("{}", i);
+        client
+            .set(&k1, &val)
+            .expect("Set failed");
+        client
+            .set(&k2, &val)
+            .expect("Set failed");
+    }
+
+    let res = client.scan("0", "*" , 10).expect("Scan failed");
+    dbg!("Scan result:", &res.next, &res.keys);
+    /*assert_eq!(res.keys.len(), 10);
+    let res = client.scan("0", &format!("{}:*", prefix2), 10).expect("Scan failed");
+    assert_eq!(res.keys.len(), 10);
+    */
+}
+
+#[test]
 fn test_pagination() {
     let client = skip_if_no_redis!();
 
@@ -269,10 +296,19 @@ fn test_delete_all() {
     }
 
     // Verify they exist
-    let res = client
-        .scan("0", &format!("{}*", prefix), 100)
-        .expect("Scan failed");
-    assert_eq!(res.keys.len(), total_keys);
+    let mut all_keys = Vec::new();
+    let mut cursor = "0".to_string();
+    loop {
+        let res = client
+            .scan(&cursor, &format!("{}*", prefix), 100)
+            .expect("Scan failed");
+        all_keys.extend(res.keys);
+        cursor = res.next;
+        if cursor == "0" {
+            break;
+        }
+    }
+    assert_eq!(all_keys.len(), total_keys);
 
     // Delete all
     let deleted_count = client

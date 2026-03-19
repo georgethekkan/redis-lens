@@ -56,6 +56,10 @@ pub struct Config {
     /// Use a mock Redis for testing/dry run
     #[clap(long)]
     pub mock: bool,
+
+    /// Start in read-only mode (destructive actions disabled)
+    #[clap(long)]
+    pub read_only: bool,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -70,4 +74,17 @@ pub struct KeyValue {
 
 pub fn parse() -> Arg {
     Arg::parse()
+}
+
+impl Config {
+    pub fn new(url: String, db: u8) -> Self {
+        Self {
+            url,
+            username: None,
+            password: None,
+            db,
+            mock: false,
+            read_only: false,
+        }
+    }
 }

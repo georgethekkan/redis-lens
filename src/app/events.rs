@@ -65,6 +65,11 @@ impl<R: crate::redis::ClientOps> App<R> {
             return Ok(());
         }
 
+        if self.confirm_delete.is_some() {
+            self.handle_delete_confirmation_key_event(key)?;
+            return Ok(());
+        }
+
         if self.show_help {
             self.show_help = false;
             return Ok(());
@@ -77,11 +82,25 @@ impl<R: crate::redis::ClientOps> App<R> {
                 self.is_searching = true;
                 self.search_query.clear();
             }
-            KeyCode::Char('e') => self.start_editing(),
+            KeyCode::Char('e') => {
+                if self.read_only {
+                    self.message = Some("Read-only mode: Editing disabled".to_string());
+                } else {
+                    self.start_editing();
+                }
+            }
             KeyCode::Char('i') => {
-                self.enable_insert_mode();
+                if self.read_only {
+                    self.message = Some("Read-only mode: Insertion disabled".to_string());
+                } else {
+                    self.enable_insert_mode();
+                }
             }
             KeyCode::Char('a') => {
+                if self.read_only {
+                    self.message = Some("Read-only mode: Addition disabled".to_string());
+                    return Ok(());
+                }
                 if self.focus != Focus::Details {
                     return Ok(());
                 }
@@ -156,7 +175,13 @@ impl<R: crate::redis::ClientOps> App<R> {
             KeyCode::Enter | KeyCode::Char(' ') => {
                 self.toggle_expanded();
             }
-            KeyCode::Char('d') => self.delete_selected_key()?,
+            KeyCode::Char('d') => {
+                if self.read_only {
+                    self.message = Some("Read-only mode: Deletion disabled".to_string());
+                } else {
+                    self.delete_selected_key()?;
+                }
+            }
             KeyCode::Char('n') => self.load_next_page()?,
 
             KeyCode::Right => {
@@ -219,7 +244,13 @@ impl<R: crate::redis::ClientOps> App<R> {
             KeyCode::Left | KeyCode::BackTab => {
                 self.focus = Focus::LeftMenu;
             }
-            KeyCode::Char('d') => self.delete_collection_item()?,
+            KeyCode::Char('d') => {
+                if self.read_only {
+                    self.message = Some("Read-only mode: Deletion disabled".to_string());
+                } else {
+                    self.delete_collection_item()?;
+                }
+            }
             KeyCode::Char('l') => {
                 self.next_collection_page();
                 self.fetch_selected_key_details()?;
@@ -248,6 +279,19 @@ impl<R: crate::redis::ClientOps> App<R> {
                 if self.db_cursor < 15 {
                     self.db_cursor += 1;
                 }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    pub fn handle_delete_confirmation_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+                self.confirm_delete_action()?;
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                self.confirm_delete = None;
             }
             _ => {}
         }

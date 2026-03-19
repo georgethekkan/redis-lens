@@ -16,6 +16,7 @@ use ratatui::{
     widgets::{ListState, TableState},
 };
 use std::collections::{BTreeMap, HashMap};
+use tracing::info;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Focus {
@@ -63,6 +64,12 @@ pub struct Editing {
     pub original: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct DeleteConfirmation {
+    pub path: String,
+    pub is_folder: bool,
+}
+
 impl Editing {
     pub fn new(buffer: String, original: String) -> Self {
         Self { buffer, original }
@@ -95,6 +102,8 @@ pub struct App<R: ClientOps> {
     pub is_selecting_db: bool,
     pub db_cursor: usize,
 
+    pub confirm_delete: Option<DeleteConfirmation>,
+
     // Pagination
     pub collection_page: usize,
     pub collection_page_size: usize,
@@ -102,10 +111,13 @@ pub struct App<R: ClientOps> {
 
     // Tree View
     pub tree: Tree,
+
+    pub db_size: usize,
+    pub read_only: bool,
 }
 
 impl<R: ClientOps> App<R> {
-    pub fn new(redis_client: R) -> Result<Self> {
+    pub fn new(redis_client: R, read_only: bool) -> Result<Self> {
         let mut app = Self {
             client: redis_client,
             keys: Vec::new(),
@@ -130,6 +142,9 @@ impl<R: ClientOps> App<R> {
             collection_page_size: 50,
             collection_cursors: vec!["0".to_string()],
             tree: Tree::new(),
+            db_size: 0,
+            confirm_delete: None,
+            read_only,
         };
 
         app.refresh()?;
@@ -157,9 +172,17 @@ impl<R: ClientOps> App<R> {
     }
 
     pub fn refresh(&mut self) -> Result<()> {
-        let resp = self.client.scan("0", &self.filter_pattern, 100)?;
+        let page_size = if self.db_size > 0 && self.db_size < 100_000 {
+            self.db_size
+        } else {
+            100
+        };
+        let resp = self.client.scan("0", &self.filter_pattern, page_size)?;
         self.next = resp.next;
         self.keys = resp.keys;
+        self.db_size = self.client.dbsize().unwrap_or(0) as usize;
+
+        info!("Fetched {} keys", self.keys.len());
 
         self.rebuild_tree();
 

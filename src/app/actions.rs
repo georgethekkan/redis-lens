@@ -59,29 +59,37 @@ impl<R: crate::redis::ClientOps> App<R> {
             return Ok(());
         };
         let (_, is_key, _, _, _) = self.tree.flattened_items[index];
-        if !is_key {
-            self.message = Some("Cannot delete folder yet".to_string());
+
+        self.confirm_delete = Some(crate::app::DeleteConfirmation {
+            path,
+            is_folder: !is_key,
+        });
+
+        Ok(())
+    }
+
+    pub fn confirm_delete_action(&mut self) -> Result<()> {
+        let Some(conf) = self.confirm_delete.take() else {
             return Ok(());
+        };
+
+        if conf.is_folder {
+            let pattern = format!("{}:*", conf.path);
+            let count = self.client.delete_all(&pattern)?;
+            // Also check if the path itself is a key
+            let deleted_self = self.client.del(&conf.path)?;
+            self.message = Some(format!(
+                "Deleted tree: {} ({} keys removed)",
+                conf.path,
+                count + deleted_self as usize
+            ));
+        } else {
+            self.client.del(&conf.path)?;
+            self.message = Some(format!("Deleted key: {}", conf.path));
         }
 
-        self.client.del(&path)?;
-        self.message = Some(format!("Deleted key: {}", path));
-
-        // Helper functionality to remove key from tree without full scan?
-        // For now, full rebuild is safer and easier.
-        if let Some(pos) = self.keys.iter().position(|k| *k == path) {
-            self.keys.remove(pos);
-        }
-        self.key_types.remove(&path);
-        self.rebuild_tree();
-
-        // Reset selection?? Or try to keep index?
-        // If index exists in new tree, fine.
-        if index >= self.tree.flattened_items.len() {
-            self.list_state.select(None);
-        }
+        self.refresh()?;
         self.loaded_key = None;
-
         Ok(())
     }
 

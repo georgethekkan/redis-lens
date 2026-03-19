@@ -56,7 +56,7 @@ pub fn draw<R: ClientOps>(frame: &mut Frame, app: &mut App<R>, left: Rect) {
                 .border_style(border_style),
         )
         .highlight_style(THEME.key_highlight)
-        .highlight_symbol(">> ");
+        .highlight_symbol("> ");
 
     frame.render_stateful_widget(list, left, &mut app.list_state);
 }

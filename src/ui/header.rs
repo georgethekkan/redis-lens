@@ -25,10 +25,19 @@ pub fn draw<R: ClientOps>(frame: &mut Frame, app: &mut App<R>, area: Rect) {
 
     let stats = &app.stats;
 
-    let info_text = Line::from(vec![Span::styled(
-        stats.display(clean_url),
-        THEME.header_info,
-    )]);
+    let mut info_spans = vec![Span::styled(stats.display(clean_url), THEME.header_info)];
+    if app.read_only {
+        info_spans.push(Span::raw(" "));
+        info_spans.push(Span::styled(
+            " [READ-ONLY] ",
+            ratatui::style::Style::default()
+                .fg(ratatui::style::Color::Black)
+                .bg(ratatui::style::Color::Red)
+                .add_modifier(ratatui::style::Modifier::BOLD),
+        ));
+    }
+
+    let info_text = Line::from(info_spans);
     let info = Paragraph::new(info_text);
     frame.render_widget(info, layout[1]);
 }
